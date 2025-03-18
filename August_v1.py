@@ -9,9 +9,9 @@ import pandas as pd
 url = 'https://github.com/Augu0838/MarlFinance/blob/main/sp500_tickers.csv?raw=true'
 df = pd.read_csv(url)
 single_list = df.iloc[:, 0].tolist()
-single_list = single_list[0:3]
+single_list = single_list[2:10]
 
-data = yf.download(single_list, start="2018-01-01", end="2025-01-01")["Close"]
+data = yf.download(single_list, start="2018-01-01", end="2024-01-01")["Close"]
 data.dropna(inplace=True)
 #data = data.drop(columns = ['High', 'Low', 'Open', 'Volume'])
 
@@ -101,5 +101,21 @@ def run(episodes, is_training = True):
         pickle.dump(q, f)
         f.close()
 
+    # If not training, return final env values
+    if not is_training:
+        # 'day_index' is on the last day after the loop,
+        # so we can get the final portfolio value:
+        final_holdings = env.holdings.copy()
+        final_cash = env.cash
+        final_value = env._get_portfolio_value(env._get_prices(day_index))
+        env.close()
+        return final_holdings, final_cash, final_value
+
 if __name__ == '__main__':
     run(episodes=50, is_training = True)
+
+    # Evaluate (test) and get final results
+    holdings, cash, portfolio_val = run(episodes=1, is_training=False)
+    print("Final Holdings:", holdings)
+    print("Final Cash:", cash)
+    print("Final Portfolio Value:", portfolio_val)
