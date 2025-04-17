@@ -1,24 +1,39 @@
 # main.py
-
+#%%
+########### Import packages ###########
 import pandas as pd
 import numpy as np
 from Env import MultiAgentPortfolioEnv
 from Agent import PortfolioAgent
+import yfinance as yf
+from datetime import datetime, timedelta
 
+from func import download_close_prices
+
+#%%
+########### Get stock data ###########
 # Generate mock stock data (500 stocks, 1000 days)
-nr_days=100
-nr_stocks=50
-dates = pd.date_range(start="2010-01-01", periods=nr_days, freq='D')
-stock_names = [f'STK{i}' for i in range(nr_stocks)]
-mock_data = pd.DataFrame(np.random.rand(nr_days, nr_stocks) * 100, index=dates, columns=stock_names)
+period_days=100
+num_stocks=50
 
-# Initialize environment and agents
+tickers = pd.read_csv('/workspaces/MarlFinance/Part2/sp500_tickers.csv')
+single_list = tickers.iloc[:, 0].tolist()
+single_list = single_list[0:50]
+data = download_close_prices(single_list, start_day="2018-01-01", period_days=365*2)
+data.dropna(inplace=True)
+print(data.head())
+print(data.shape)
+
+
+#%%
+########### Initialize environment and agents ###########
 num_agents = 5
-stocks_pr_agent = int(nr_stocks/num_agents)
-env = MultiAgentPortfolioEnv(stock_data=mock_data, num_agents=num_agents, window_size=10)
+stocks_pr_agent = int(num_stocks/num_agents)
+env = MultiAgentPortfolioEnv(stock_data=data, num_agents=num_agents, window_size=10)
 agents = [PortfolioAgent(stock_count=stocks_pr_agent, random_seed=i) for i in range(num_agents)]  # 500 / 5 = 100 per agent
 
-# Training loop (simple rollout, no learning yet)
+#%%
+########### Training loop ###########
 episodes = 10
 for ep in range(episodes):
     print(f"Episode {ep + 1}")
@@ -35,3 +50,5 @@ for ep in range(episodes):
         states = next_states
 
     print(f"Total Sharpe Ratios (shared): {total_rewards}")
+
+# %%
