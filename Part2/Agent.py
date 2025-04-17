@@ -88,9 +88,9 @@ class PortfolioAgent:
         states, actions, rewards, next_states, dones = zip(*batch)
 
         # Convert to tensors
-        states_tensor = torch.tensor(states, dtype=torch.float32)
-        next_states_tensor = torch.tensor(next_states, dtype=torch.float32)
-        rewards_tensor = torch.tensor(rewards, dtype=torch.float32).unsqueeze(1)
+        states_tensor = torch.tensor(np.array(states), dtype=torch.float32)
+        next_states_tensor = torch.tensor(np.array(next_states), dtype=torch.float32)
+        rewards_tensor = torch.tensor(np.array(rewards), dtype=torch.float32).unsqueeze(1)
 
         # Current predictions (portfolio weights)
         current_weights = self.model(states_tensor)
