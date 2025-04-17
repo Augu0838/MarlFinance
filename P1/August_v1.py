@@ -9,7 +9,7 @@ import pandas as pd
 url = 'https://github.com/Augu0838/MarlFinance/blob/main/sp500_tickers.csv?raw=true'
 df = pd.read_csv(url)
 single_list = df.iloc[:, 0].tolist()
-single_list = single_list[2:10]
+single_list = single_list[0:10]
 
 data = yf.download(single_list, start="2018-01-01", end="2024-01-01")["Close"]
 data.dropna(inplace=True)
@@ -47,7 +47,7 @@ def run(episodes, is_training = True):
     
     learning_rate_a = 0.9
     discount_factor_g = 0.9
-    epsilon = 1
+    epsilon = 1.0
     epsilon_decay_rate = 0.0001
 
     rng = np.random.default_rng()
