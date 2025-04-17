@@ -6,14 +6,17 @@ from Env import MultiAgentPortfolioEnv
 from Agent import PortfolioAgent
 
 # Generate mock stock data (500 stocks, 1000 days)
-dates = pd.date_range(start="2010-01-01", periods=1000, freq='D')
-stock_names = [f'STK{i}' for i in range(500)]
-mock_data = pd.DataFrame(np.random.rand(1000, 500) * 100, index=dates, columns=stock_names)
+nr_days=100
+nr_stocks=50
+dates = pd.date_range(start="2010-01-01", periods=nr_days, freq='D')
+stock_names = [f'STK{i}' for i in range(nr_stocks)]
+mock_data = pd.DataFrame(np.random.rand(nr_days, nr_stocks) * 100, index=dates, columns=stock_names)
 
 # Initialize environment and agents
 num_agents = 5
+stocks_pr_agent = int(nr_stocks/num_agents)
 env = MultiAgentPortfolioEnv(stock_data=mock_data, num_agents=num_agents, window_size=10)
-agents = [PortfolioAgent(stock_count=100, random_seed=i) for i in range(num_agents)]  # 500 / 5 = 100 per agent
+agents = [PortfolioAgent(stock_count=stocks_pr_agent, random_seed=i) for i in range(num_agents)]  # 500 / 5 = 100 per agent
 
 # Training loop (simple rollout, no learning yet)
 episodes = 10
