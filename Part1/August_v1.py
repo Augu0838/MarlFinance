@@ -52,6 +52,7 @@ def run(episodes, is_training = True):
 
     rng = np.random.default_rng()
     rewards_per_episode = []
+    holdings_per_episode = []
 
     for i in range(episodes):
         state, _ = env.reset()
@@ -85,13 +86,17 @@ def run(episodes, is_training = True):
         if is_training:
             epsilon = max(epsilon - epsilon_decay_rate, 0.01)
         
+        holdings_per_episode.append(env.holdings.copy())
         rewards_per_episode.append(episode_rewards)
-
+        
     env.close()
 
     sum_rewards = np.zeros(episodes)
     for t in range(episodes):
         sum_rewards[t] = np.sum(rewards_per_episode[max(0, t-100):(t+1)])
+
+    plt.plot(rewards_per_episode)
+    plt.savefig('plot_holdings.png')
 
     plt.plot(sum_rewards)
     plt.savefig('plot_rewards.png')
