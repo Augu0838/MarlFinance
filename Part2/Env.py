@@ -57,10 +57,10 @@ class MultiAgentPortfolioEnv(gym.Env):
             rewards.append(sharpe_ratio)
 
         # Total Sharpe Ratio across agents
-        total_reward = np.mean(rewards)
+        # total_reward = np.mean(rewards)
 
         # Broadcast total Sharpe Ratio as reward to all agents
-        rewards = [total_reward] * self.num_agents
+        # rewards = [total_reward] * self.num_agents
 
         self.current_step += 1
         if self.current_step >= len(self.stock_data):
