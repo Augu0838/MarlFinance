@@ -1,35 +1,32 @@
-# Helper functions
-
 import yfinance as yf
+import pandas as pd
 from datetime import datetime, timedelta
 
-def download_close_prices(tickers, start_day, period_days):
+def download_close_prices(tickers, start_day, period_days,
+                          min_valid_fraction: float = 0.95) -> pd.DataFrame:
     """
-    Download close prices for `tickers` from `start_day` for `period_days` days.
-    
-    Parameters
-    ----------
-    tickers : list or str
-        One or more ticker symbols (e.g. ['AAPL','MSFT'] or 'AAPL').
-    start_day : str
-        Start date in 'YYYY-MM-DD' format.
-    period_days : int
-        Number of calendar days to include after start_day.
-    
-    Returns
-    -------
-    pandas.DataFrame
-        DataFrame of closing prices indexed by date.
+    One‑shot download of all tickers, then discard the bad ones.
+
+    • No per‑ticker try/except loop.
+    • Anything with < min_valid_fraction non‑NaNs is dropped.
     """
-    # parse the start date
+    if isinstance(tickers, str):
+        tickers = [tickers]
+
     start = datetime.strptime(start_day, "%Y-%m-%d")
-    # compute the end date by adding the desired timedelta
     end   = start + timedelta(days=period_days)
-    
-    # format back to string for yfinance
-    start_str = start.strftime("%Y-%m-%d")
-    end_str   = end.strftime("%Y-%m-%d")
-    
-    # download and return only the 'Close' columns
-    data = yf.download(tickers, start=start_str, end=end_str)["Close"]
-    return data
+    df    = yf.download(
+                tickers, start=start, end=end, progress=False
+            )["Close"]                         # DataFrame, columns = tickers
+
+    if df.ndim == 1:                           # happens if len(tickers)==1
+        df = df.to_frame()
+
+    # keep only those columns that have enough usable data
+    good_cols = df.notna().mean() >= min_valid_fraction
+    clean_df  = df.loc[:, good_cols].dropna(how="all")
+
+    if clean_df.empty:
+        raise ValueError("No tickers with sufficient data were downloaded.")
+
+    return clean_df
