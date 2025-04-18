@@ -3,7 +3,7 @@ import numpy as np
 import gym
 from gym import spaces
 
-class MultiAgentPortfolioEnvFast(gym.Env):
+class MultiAgentPortfolioEnv(gym.Env):
     """
     Same interface, but all computations are vectorised numpy.
     """
