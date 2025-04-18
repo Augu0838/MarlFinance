@@ -4,8 +4,7 @@ import numpy as np
 import torch
 import torch.nn as nn
 import torch.optim as optim
-from collections import deque
-import random
+from torch.distributions import Dirichlet
 
 # Define a simple neural network for approximating the Q-function
 class DQNetwork(nn.Module):
@@ -29,101 +28,69 @@ class DQNetwork(nn.Module):
 # Define the PortfolioAgent using a simple DQN approach
 class PortfolioAgent:
     def __init__(
-        self, stock_count, window_size=10, lr=1e-3, gamma=0.99,
-        epsilon=1.0, epsilon_decay=0.995, min_epsilon=0.01
-    ):
+        self, stock_count, window_size=10, lr=1e-3, gamma=0.99):
         self.stock_count = stock_count  # number of stocks this agent manages
         self.input_dim = window_size * stock_count  # flattened input size
+        self.entropies = []  # store entropy values per step
 
-        # Main Q-network and target Q-network
+        # Main Q-network
         self.model = DQNetwork(self.input_dim, stock_count)
-        self.target_model = DQNetwork(self.input_dim, stock_count)
-        self.target_model.load_state_dict(self.model.state_dict())  # initialize target model weights
 
-        # Optimizer and loss function
+        # Optimizer
         self.optimizer = optim.Adam(self.model.parameters(), lr=lr)
-        self.loss_fn = nn.MSELoss()
 
         # Discount factor for future rewards
         self.gamma = gamma
 
-        # Epsilon-greedy policy parameters
-        self.epsilon = epsilon
-        self.epsilon_decay = epsilon_decay
-        self.min_epsilon = min_epsilon
-
-        # Experience replay memory
-        self.memory = deque(maxlen=5000)  # capped memory size
-        self.batch_size = 32  # training batch size
+        # Stores for one episode
+        self.saved_log_probs = []
+        self.rewards = []
 
     def act(self, state):
         """
-        Decide portfolio weights for current state.
-        Uses epsilon-greedy policy: random or model prediction.
+        Sample portfolio weights from a Dirichlet distribution centered on the model output.
+        Save log-prob for policy gradient training.
         """
         state_tensor = torch.tensor(state.flatten(), dtype=torch.float32).unsqueeze(0)  # convert to torch tensor and add batch dim
+        probs = self.model(state_tensor).squeeze()
 
-        # With probability epsilon, choose random weights
-        if np.random.rand() < self.epsilon:
-            weights = np.random.rand(self.stock_count)
-            weights /= np.sum(weights)  # normalize to sum to 1
-        else:
-            with torch.no_grad():
-                weights = self.model(state_tensor).numpy().squeeze()  # use model prediction
-        return weights
+        # Add temperature for exploration; adjust concentration (alpha)
+        alpha = probs * 5 + 1e-3  # scale to get sharper distributions
+        dist = Dirichlet(alpha)
+        action = dist.sample()
+        log_prob = dist.log_prob(action)
+        entropy = dist.entropy()
 
-    def update(self, state, action, reward, next_state, done):
+        self.saved_log_probs.append(log_prob)
+        self.entropies.append(entropy)
+
+        return action.detach().numpy()
+
+    def update(self):
         """
-        Store experience and perform training using sampled mini-batches.
+        REINFORCE with entropy regularization.
         """
-        # Flatten state and next_state to match input expectations
-        self.memory.append((state.flatten(), action, reward, next_state.flatten(), done))
+        R = 0
+        returns = []
+        for r in reversed(self.rewards):
+            R = r + self.gamma * R
+            returns.insert(0, R)
 
-        # Skip training if not enough data yet
-        if len(self.memory) < self.batch_size:
-            return
+        returns = torch.tensor(returns, dtype=torch.float32)
+        returns = (returns - returns.mean()) / (returns.std() + 1e-6)
 
-        # Sample a random batch of experiences
-        batch = random.sample(self.memory, self.batch_size)
-        states, actions, rewards, next_states, dones = zip(*batch)
+        entropy_weight = 0.01  # you can tune this
+        policy_loss = []
 
-        # Convert to tensors
-        states_tensor = torch.tensor(np.array(states), dtype=torch.float32)
-        next_states_tensor = torch.tensor(np.array(next_states), dtype=torch.float32)
-        rewards_tensor = torch.tensor(np.array(rewards), dtype=torch.float32).unsqueeze(1)
+        for log_prob, entropy, R in zip(self.saved_log_probs, self.entropies, returns):
+            loss = -log_prob * R - entropy_weight * entropy
+            policy_loss.append(loss)
 
-        # Current predictions (portfolio weights)
-        current_weights = self.model(states_tensor)
-
-        # Predicted weights for next states (target network)
-        next_weights = self.target_model(next_states_tensor).detach()
-
-        # Construct target values (same shape as current_weights)
-        target_weights = current_weights.clone()
-
-        for i in range(self.batch_size):
-            target = rewards[i]  # immediate reward
-            if not dones[i]:
-                # Add discounted future reward estimate
-                target += self.gamma * torch.sum(next_weights[i])
-            # Distribute total target value uniformly across portfolio weights
-            target_weights[i] = target / self.stock_count  # keeps dimension consistent
-
-        # Compute loss between current weights and target weights
-        loss = self.loss_fn(current_weights, target_weights)
-
-        # Backpropagation and optimization step
         self.optimizer.zero_grad()
-        loss.backward()
+        torch.stack(policy_loss).sum().backward()
         self.optimizer.step()
 
-        # Epsilon decay for exploration-exploitation trade-off
-        if self.epsilon > self.min_epsilon:
-            self.epsilon *= self.epsilon_decay
-
-    def sync_target_model(self):
-        """
-        Periodically sync target network weights from the main model.
-        Helps stabilize training (standard DQN technique).
-        """
-        self.target_model.load_state_dict(self.model.state_dict())
+        # Clear episode history
+        self.saved_log_probs.clear()
+        self.rewards.clear()
+        self.entropies.clear()
