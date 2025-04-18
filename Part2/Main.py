@@ -6,6 +6,7 @@ from Env import MultiAgentPortfolioEnv
 from Agent import PortfolioAgent
 import yfinance as yf
 from datetime import datetime, timedelta
+import matplotlib.pylab as plt
 
 from func import download_close_prices
 
@@ -72,9 +73,20 @@ for ep in range(episodes):
 
     print(f"Total Sharpe Ratios (shared): {total_rewards}")
 
+    lst_rewards = []
+    sum_rewards = sum(total_rewards)/len(total_rewards)
+    lst_rewards.append(sum_rewards)
+
     # Sync target models every 2 episodes
     if ep % 2 == 0:
         for agent in agents:
             agent.sync_target_model()
 
+# %%
+
+print(lst_rewards)
+
+plt.figure()
+plt.plot(np.array(lst_rewards).cumsum(), label = 'Deep RL portfolio', color = 'black',ls = '-')
+plt.show()
 # %%
