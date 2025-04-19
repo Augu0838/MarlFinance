@@ -1,4 +1,29 @@
-# agent.py
+"""agent.py
+-------------------------------------------------------------------------------
+A *policy‑gradient* agent for portfolio optimisation.
+
+Why this file exists
+--------------------
+*   The **environment** shows the agent a small window of recent prices.
+*   The **agent** must output a *vector of portfolio weights* (one per stock)
+    that always sums to **1**.
+*   Classic DQN works poorly for that continuous, simplex‑constrained action
+    space, so we use **REINFORCE** with a Dirichlet sampler.
+
+Core ideas implemented here
+---------------------------
+* **PolicyNetwork** – maps state → preferred allocation probabilities.
+* **Dirichlet exploration** – keeps each sampled allocation legal (positive &
+  summing to 1) while adding controllable randomness.
+* **Entropy bonus** – prevents the policy from collapsing too early.
+* **Discounted‑return baseline** – each action is credited according to the
+  *future* Sharpe ratios it eventually produced.
+"""
+
+# ---------------------------------------------------------------------------
+# 0. Imports
+# ---------------------------------------------------------------------------
+from __future__ import annotations
 
 import numpy as np
 import torch
@@ -6,91 +31,125 @@ import torch.nn as nn
 import torch.optim as optim
 from torch.distributions import Dirichlet
 
-# Define a simple neural network for approximating the Q-function
-class DQNetwork(nn.Module):
-    def __init__(self, input_dim, output_dim, hidden_size=128):
-        super(DQNetwork, self).__init__()
-        # Create a basic feedforward neural network:
-        # Input: Flattened window of historical prices
-        # Output: Portfolio weights for each stock (via Softmax)
+# ---------------------------------------------------------------------------
+# 1. PolicyNetwork (actor) – NOT a Q‑network
+# ---------------------------------------------------------------------------
+class PolicyNetwork(nn.Module):
+    """A two‑layer MLP that outputs a **probability distribution** over stocks.
+
+    Parameters
+    ----------
+    input_dim : int
+        Length of the flattened state vector
+        (= ``window_size × stock_count``).
+    output_dim : int
+        Number of stocks → size of the weight vector.
+    hidden_size : int, default 128
+        Width of the single hidden layer.
+    """
+
+    def __init__(self, input_dim: int, output_dim: int, hidden_size: int = 128):
+        super().__init__()
+
         self.model = nn.Sequential(
-            nn.Flatten(),  # flatten the input (e.g., window_size x stock_count)
-            nn.Linear(input_dim, hidden_size),  # hidden layer
-            nn.ReLU(),  # non-linearity
-            nn.Linear(hidden_size, output_dim),  # output layer: one weight per stock
-            nn.Softmax(dim=-1)  # ensures output weights sum to 1
+            nn.Flatten(),                      # (B, window, k) -> (B, window*k)
+            nn.Linear(input_dim, hidden_size), # dense layer
+            nn.ReLU(),                         # non‑linearity
+            nn.Linear(hidden_size, output_dim),
+            nn.Softmax(dim=-1)                 # convert logits → probabilities
         )
 
-    def forward(self, x):
-        return self.model(x)  # pass input through the network
+    def forward(self, x: torch.Tensor) -> torch.Tensor:  # noqa: D401
+        """Return a **(batch, output_dim)** tensor of probabilities."""
+        return self.model(x)
 
 
-# Define the PortfolioAgent using a simple DQN approach
+# ---------------------------------------------------------------------------
+# 2. PortfolioAgent – REINFORCE with entropy regularisation
+# ---------------------------------------------------------------------------
 class PortfolioAgent:
-    def __init__(
-        self, stock_count, window_size=10, lr=1e-3, gamma=0.99):
-        self.stock_count = stock_count  # number of stocks this agent manages
-        self.input_dim = window_size * stock_count  # flattened input size
-        self.entropies = []  # store entropy values per step
+    """Policy‑gradient agent that learns to allocate capital across *k* stocks.
 
-        # Main Q-network
-        self.model = DQNetwork(self.input_dim, stock_count)
+    Workflow per episode
+    --------------------
+    1. **act()** – sample a weight vector, store log‑prob & entropy.
+    2. Environment returns a *Sharpe ratio* reward → store it.
+    3. After the episode ends, **update()**:
+       * builds discounted return ``R_t`` for every step;
+       * computes ``loss = −logπ(a_t|s_t) * R_t − λ·entropy``;
+       * back‑props and updates the network.
 
-        # Optimizer
+    Notes
+    -----
+    * Uses **Dirichlet(α)** so sampled actions always lie on the simplex.
+    * Multiplying the policy output by 5 makes α > 1, giving *moderate* noise.
+    * ``entropy_weight`` controls exploration strength (λ).
+    """
+
+    # ------------------------------------------------------------------ init
+    def __init__(self, stock_count: int, window_size: int = 10,
+                 lr: float = 1e-3, gamma: float = 0.99):
+        # ----- hyper‑parameters
+        self.stock_count = stock_count
+        self.input_dim   = window_size * stock_count
+        self.gamma       = gamma        # discount factor
+
+        # ----- neural network + optimiser
+        self.model = PolicyNetwork(self.input_dim, stock_count)
         self.optimizer = optim.Adam(self.model.parameters(), lr=lr)
 
-        # Discount factor for future rewards
-        self.gamma = gamma
+        # ----- episode memory (cleared every update)
+        self.saved_log_probs: list[torch.Tensor] = []  # log π(a|s)
+        self.rewards:         list[float]        = []  # r_t
+        self.entropies:       list[torch.Tensor] = []  # H[π]
 
-        # Stores for one episode
-        self.saved_log_probs = []
-        self.rewards = []
+    # ------------------------------------------------------------------ act()
+    def act(self, state: np.ndarray) -> np.ndarray:
+        """Return a legal weight vector and log info for learning."""
+        # 1) convert state → torch (shape: (1, input_dim))
+        state_tensor = torch.tensor(state.flatten(), dtype=torch.float32).unsqueeze(0)
 
-    def act(self, state):
-        """
-        Sample portfolio weights from a Dirichlet distribution centered on the model output.
-        Save log-prob for policy gradient training.
-        """
-        state_tensor = torch.tensor(state.flatten(), dtype=torch.float32).unsqueeze(0)  # convert to torch tensor and add batch dim
+        # 2) network preference (probabilities sum to 1)
         probs = self.model(state_tensor).squeeze()
 
-        # Add temperature for exploration; adjust concentration (alpha)
-        alpha = probs * 5 + 1e-3  # scale to get sharper distributions
-        dist = Dirichlet(alpha)
-        action = dist.sample()
-        log_prob = dist.log_prob(action)
-        entropy = dist.entropy()
+        # 3) Dirichlet exploration around `probs`
+        alpha  = probs * 5 + 1e-3  # α > 1 ⇒ mild noise; tweak multiplier as needed
+        dist   = Dirichlet(alpha)
+        action = dist.sample()      # sampled weights (positive, sum‑to‑1)
 
-        self.saved_log_probs.append(log_prob)
-        self.entropies.append(entropy)
+        # 4) bookkeeping for REINFORCE
+        self.saved_log_probs.append(dist.log_prob(action))  # ln π(a|s)
+        self.entropies.append(dist.entropy())               # H[π]
 
-        return action.detach().numpy()
+        return action.detach().numpy()  # ← environment expects NumPy array
 
-    def update(self):
-        """
-        REINFORCE with entropy regularization.
-        """
-        R = 0
-        returns = []
+    # -------------------------------------------------------------- update()
+    def update(self) -> None:
+        """Perform one REINFORCE update using data from the last episode."""
+        # 1) Compute discounted returns G_t
+        R = 0.0
+        returns: list[float] = []
         for r in reversed(self.rewards):
             R = r + self.gamma * R
-            returns.insert(0, R)
+            returns.insert(0, R)  # prepend so list ends in time order
+        returns_t = torch.tensor(returns, dtype=torch.float32)
 
-        returns = torch.tensor(returns, dtype=torch.float32)
-        returns = (returns - returns.mean()) / (returns.std() + 1e-6)
+        # 2) Normalise returns (helps gradient stability)
+        returns_t = (returns_t - returns_t.mean()) / (returns_t.std() + 1e-6)
 
-        entropy_weight = 0.01  # you can tune this
-        policy_loss = []
+        # 3) Policy loss = −logπ(a|s)·G_t  − λ·entropy
+        entropy_weight = 0.01
+        policy_losses = [-(lp * G) - entropy_weight * H
+                         for lp, H, G in zip(self.saved_log_probs,
+                                             self.entropies,
+                                             returns_t)]
 
-        for log_prob, entropy, R in zip(self.saved_log_probs, self.entropies, returns):
-            loss = -log_prob * R - entropy_weight * entropy
-            policy_loss.append(loss)
-
+        # 4) Gradient descent step
         self.optimizer.zero_grad()
-        torch.stack(policy_loss).sum().backward()
+        torch.stack(policy_losses).sum().backward()
         self.optimizer.step()
 
-        # Clear episode history
+        # 5) Clear buffers for next episode
         self.saved_log_probs.clear()
         self.rewards.clear()
         self.entropies.clear()
