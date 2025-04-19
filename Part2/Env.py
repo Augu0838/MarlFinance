@@ -2,15 +2,17 @@
 import numpy as np
 import gym
 from gym import spaces
+import pandas as pd
 
 class MultiAgentPortfolioEnv(gym.Env):
     """
     Same interface, but all computations are vectorised numpy.
     """
-    def __init__(self, stock_df, num_agents, window_size=10):
+    def __init__(self, stock_df, num_agents, window_size=10, external_trader=None):
         super().__init__()
         self.window_size   = window_size
         self.num_agents    = num_agents
+        self.external_trader = external_trader # accept input from external trader
 
         # --- 1)  cache ndarray & returns ----------------------------------
         self.prices   = stock_df.to_numpy(dtype=np.float32)          # shape (T, S)
@@ -63,10 +65,22 @@ class MultiAgentPortfolioEnv(gym.Env):
         window_ret = self.returns[start:end]                # (W‑1, S)
 
         # Combine all agent actions into one portfolio
-        A = np.vstack(actions).astype(np.float32).flatten()  # (S,)
+        agent_portfolio = np.vstack(actions).astype(np.float32).flatten()  # (S,)
+
+        # Include external trader if provided
+        if self.external_trader:
+            window_df = pd.DataFrame(
+                self.prices[self.current_step - self.window_size: self.current_step],
+                columns=[f"Stock{i}" for i in range(self.num_stocks)]
+            )
+            momentum_weights = self.external_trader.step(window_df)  # shape (S,)
+            combined_portfolio = agent_portfolio + momentum_weights
+            combined_portfolio /= combined_portfolio.sum()  # re-normalize
+        else:
+            combined_portfolio = agent_portfolio
 
         # Portfolio returns over time
-        port_ret = np.dot(window_ret, A)             # (W-1,)
+        port_ret = np.dot(window_ret, combined_portfolio)             # (W-1,)
 
         mean  = port_ret.mean(axis=0)                       # (A,)
         std   = port_ret.std(axis=0)  + 1e-6
