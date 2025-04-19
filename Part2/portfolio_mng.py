@@ -7,7 +7,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 from func import download_close_prices 
 
-def external_weights(num_stocks:int):
+def external_weights(num_stocks:int, start_day):
     # ------------------------------------------------------------------
     # 0.  Define traders
     # ------------------------------------------------------------------
@@ -237,7 +237,7 @@ def external_weights(num_stocks:int):
     ).iloc[:num_stocks, 0].tolist()
 
     data = download_close_prices(
-        tickers, start_day="2022-01-01", period_days=365 * 2
+        tickers, start_day=start_day, period_days=365 * 3
     ).dropna()
 
 

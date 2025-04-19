@@ -16,11 +16,12 @@ from func import download_close_prices
 #%% --------------------------------------------------------------------------
 # 1.  ──‑‑‑ DATA  ‑‑‑——————————————————————————————————————————————————
 num_stocks     = 50
+start_day = "2018-01-01"
 tickers = pd.read_csv(
     "https://github.com/Augu0838/MarlFinance/blob/main/Part2/sp500_tickers.csv?raw=true"
 ).iloc[:num_stocks, 0].tolist()
 
-data = download_close_prices(tickers, start_day="2018-01-01", period_days=365*3)
+data = download_close_prices(tickers, start_day=start_day, period_days=365*3)
 data.dropna(inplace=True)
 print(data.head())
 print(data.shape)
@@ -32,7 +33,7 @@ window_size = 10
 stocks_per_agent = num_stocks // num_agents
 
 # Setup external trader
-external_trader = external_weights(num_stocks=num_stocks)
+external_trader = external_weights(num_stocks=num_stocks, start_day=start_day)
 
 # Modified env to include trader
 env = MultiAgentPortfolioEnv(data, num_agents, window_size, external_trader=external_trader)
@@ -119,3 +120,74 @@ if __name__ == "__main__":
     eval_scores, _, action_logs = run(episodes=1, train=False)
     print(f"\nEvaluation Sharpe ratios: {eval_scores[-1]}")
 
+#%% --------------------------------------------------------------------------
+# 6.  ──‑‑‑‑ SHARPE RATIO PLOT  ‑‑‑—————————————————————————————————————————
+
+# Extract necessary data
+returns = np.diff(data.values, axis=0) / data.values[:-1]  # shape (T-1, S)
+dates = data.index[1:]  # align with returns
+
+# Determine actual usable length (safe length after start_idx)
+eval_len = len(action_logs[0])  # number of timesteps in the episode
+start_idx = env.window_size
+max_len = min(eval_len, len(dates) - start_idx)
+
+# Align dates and return windows safely
+eval_dates = dates[start_idx : start_idx + max_len]
+ret_window = returns[start_idx : start_idx + max_len]
+
+# ------------------ 1. Combined portfolio returns ------------------
+
+combined_daily_returns = []
+for t in range(max_len):
+    step_actions = action_logs[0][t]
+    agent_weights = np.vstack(step_actions).flatten()
+    date = eval_dates[t]
+  
+    if date in external_trader.index:
+        ext_weights = external_trader.loc[date].values
+        combo_weights = agent_weights + ext_weights
+        combo_weights /= combo_weights.sum()
+    else:
+        combo_weights = agent_weights
+
+    r = np.dot(ret_window[t], combo_weights)
+    combined_daily_returns.append(r)
+
+# ------------------ 2. External-only portfolio returns ------------------
+
+external_daily_returns = []
+for t in range(max_len):
+    date = eval_dates[t]
+    if date in external_trader.index:
+        weights = external_trader.loc[date].values
+        r = np.dot(ret_window[t], weights)
+        external_daily_returns.append(r)
+    else:
+        external_daily_returns.append(0.0)  # fallback if date not available
+
+# ------------------ 3. Rolling Sharpe (10-day window) ------------------
+
+def rolling_sharpe(returns, window=10):
+    returns = pd.Series(returns)
+    mean = returns.rolling(window).mean()
+    std = returns.rolling(window).std() + 1e-6
+    return (mean / std).values
+
+sharpe_combined = rolling_sharpe(combined_daily_returns)
+sharpe_external = rolling_sharpe(external_daily_returns)
+days = np.arange(len(sharpe_combined))
+
+# ------------------ 4. Plot ------------------
+
+plt.figure(figsize=(10, 5))
+plt.plot(days, sharpe_combined, label='Combined Portfolio')
+plt.plot(days, sharpe_external, label='External-only Portfolio')
+plt.title('10-Day Rolling Sharpe Ratio')
+plt.xlabel('Day')
+plt.ylabel('Sharpe Ratio')
+plt.legend()
+plt.grid(True)
+plt.tight_layout()
+plt.show()
+# %%
