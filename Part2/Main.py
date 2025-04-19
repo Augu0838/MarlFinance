@@ -7,6 +7,8 @@ from Agent import PortfolioAgent
 import yfinance as yf
 from datetime import datetime, timedelta
 import matplotlib.pylab as plt
+import torch
+import time
 
 from func import download_close_prices
 
@@ -26,7 +28,7 @@ print(data.shape)
 ########### Initialize environment and agents ###########
 num_agents = 5
 window_size = 10
-stocks_pr_agent = num_stocks // num_agents
+stocks_per_agent = num_stocks // num_agents
 
 # Initialize environment
 env = MultiAgentPortfolioEnv(stock_data=data, num_agents=num_agents, window_size=window_size)
