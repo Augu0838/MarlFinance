@@ -191,3 +191,21 @@ plt.grid(True)
 plt.tight_layout()
 plt.show()
 # %%
+
+#%% --------------------------------------------------------------------------
+# 7.  ──‑‑‑‑ SHARPE DIFFERENCE PLOT  ‑‑‑———————————————————————————————
+
+# Compute difference between the rolling Sharpe ratios
+sharpe_diff = np.array(sharpe_combined) - np.array(sharpe_external)
+
+# Plot the difference
+plt.figure(figsize=(10, 5))
+plt.plot(days, sharpe_diff, label='Sharpe Ratio Difference (Combined - External)')
+plt.axhline(0, color='gray', linestyle='--', linewidth=1)
+plt.title('10-Day Rolling Sharpe Ratio Difference')
+plt.xlabel('Day')
+plt.ylabel('Sharpe Difference')
+plt.legend()
+plt.grid(True)
+plt.tight_layout()
+plt.show()
