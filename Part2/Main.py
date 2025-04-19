@@ -31,7 +31,7 @@ window_size = 10
 stocks_per_agent = num_stocks // num_agents
 
 # Initialize environment
-env = MultiAgentPortfolioEnv(stock_data=data, num_agents=num_agents, window_size=window_size)
+env = MultiAgentPortfolioEnv(stock_df=data, num_agents=num_agents, window_size=window_size)
 
 # Initialize agents (now requires window_size)
 agents = [
