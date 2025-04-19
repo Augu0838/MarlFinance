@@ -13,7 +13,7 @@ tickers = pd.read_csv(
     "https://github.com/Augu0838/MarlFinance/blob/main/Part2/sp500_tickers.csv?raw=true"
 ).iloc[:num_stocks, 0].tolist()
 
-data = download_close_prices(tickers, start_day="2018-01-01", period_days=365*2)
+data = download_close_prices(tickers, start_day="2018-01-01", period_days=365*3)
 data.dropna(inplace=True)
 
 #%% --------------------------------------------------------------------------
@@ -89,7 +89,7 @@ def run(episodes:int, *, train:bool=True):
 #%% --------------------------------------------------------------------------
 # 4.  ──‑‑‑ TRAIN  ‑‑‑———————————————————————————————————————————————————
 if __name__ == "__main__":
-    train_scores, _ = run(episodes=5, train=True)
+    train_scores, _ = run(episodes=50, train=True)
 
     # optional: save checkpoints
     for i, ag in enumerate(agents):
@@ -154,7 +154,7 @@ for day_idx, step_weights in enumerate(episode_actions[:400]):
     for agent_idx, agent_weights in enumerate(step_weights):
         start = agent_idx * stocks_per_agent
         tickers_for_agent = tickers[start: start + stocks_per_agent]
-        top_idx = agent_weights.argsort()[-3:][::-1]  # top 3 positions per agent
+        top_idx = agent_weights.argsort()[-7:][::-1]  # top 3 positions per agent
         top_assets = [(tickers_for_agent[i], agent_weights[i]) for i in top_idx]
         print(f"  Agent {agent_idx + 1}: {[f'{name}: {w:.2%}' for name, w in top_assets]}")
 

@@ -55,7 +55,7 @@ class PortfolioAgent:
         probs = self.model(state_tensor).squeeze()
 
         # Add temperature for exploration; adjust concentration (alpha)
-        alpha = probs * 5 + 1e-3  # scale to get sharper distributions
+        alpha = probs * 0.05 + 1e-3  # scale to get sharper distributions
         dist = Dirichlet(alpha)
         action = dist.sample()
         log_prob = dist.log_prob(action)

@@ -61,15 +61,6 @@ class MultiAgentPortfolioEnv(gym.Env):
         end   = self.current_step - 1                       # returns are T‑1
 
         window_ret = self.returns[start:end]                # (W‑1, S)
-        
-        #window_ret = window_ret.reshape(self.window_size-1, self.num_agents, self.stocks_per_agent)
-
-        # (b) stack actions -> shape (num_agents, stocks_per_agent)
-        #A = np.vstack(actions).astype(np.float32)
-
-        # (c) portfolio returns per agent in one mat‑mul
-        #     window_ret: (W-1, A, K) , A.T: (K, A) → (W-1, A)
-        #port_ret = np.einsum("wak,ak->wa", window_ret, A)   # incredibly fast
 
         # Combine all agent actions into one portfolio
         A = np.vstack(actions).astype(np.float32).flatten()  # (S,)
@@ -79,7 +70,6 @@ class MultiAgentPortfolioEnv(gym.Env):
 
         mean  = port_ret.mean(axis=0)                       # (A,)
         std   = port_ret.std(axis=0)  + 1e-6
-        #rewards = (mean / std).tolist()                     # python list OK
 
         reward = mean / std
         rewards = [reward] * self.num_agents
