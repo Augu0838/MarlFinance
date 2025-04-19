@@ -4,13 +4,13 @@ import pandas as pd
 import numpy as np
 from Env import MultiAgentPortfolioEnv
 from Agent import PortfolioAgent
-from momentum import MomentumTrader
 import yfinance as yf
 from datetime import datetime, timedelta
 import matplotlib.pylab as plt
 import torch
 import time
 
+from portfolio_mng import external_weights
 from func import download_close_prices
 
 #%% --------------------------------------------------------------------------
@@ -32,10 +32,10 @@ window_size = 10
 stocks_per_agent = num_stocks // num_agents
 
 # Setup external trader
-momentum_trader = MomentumTrader(num_stocks=num_stocks)
+external_trader = external_weights(num_stocks=num_stocks)
 
 # Modified env to include trader
-env = MultiAgentPortfolioEnv(data, num_agents, window_size, external_trader=momentum_trader)
+env = MultiAgentPortfolioEnv(data, num_agents, window_size, external_trader=external_trader)
 
 # Initialize agents (now requires window_size)
 agents = [

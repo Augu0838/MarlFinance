@@ -13,6 +13,7 @@ class MultiAgentPortfolioEnv(gym.Env):
         self.window_size   = window_size
         self.num_agents    = num_agents
         self.external_trader = external_trader # accept input from external trader
+        self.stock_df = stock_df
 
         # --- 1)  cache ndarray & returns ----------------------------------
         self.prices   = stock_df.to_numpy(dtype=np.float32)          # shape (T, S)
@@ -67,15 +68,15 @@ class MultiAgentPortfolioEnv(gym.Env):
         # Combine all agent actions into one portfolio
         agent_portfolio = np.vstack(actions).astype(np.float32).flatten()  # (S,)
 
-        # Include external trader if provided
-        if self.external_trader:
-            window_df = pd.DataFrame(
-                self.prices[self.current_step - self.window_size: self.current_step],
-                columns=[f"Stock{i}" for i in range(self.num_stocks)]
-            )
-            momentum_weights = self.external_trader.step(window_df)  # shape (S,)
-            combined_portfolio = agent_portfolio + momentum_weights
-            combined_portfolio /= combined_portfolio.sum()  # re-normalize
+        # Combine with external weights if available
+        if self.external_trader is not None:
+            date = self.stock_df.index[self.current_step]
+            if date in self.external_trader.index:
+                external_weights = self.external_trader.loc[date].values.astype(np.float32)
+                combined_portfolio = agent_portfolio + external_weights
+                combined_portfolio /= combined_portfolio.sum()  # re-normalize
+            else:
+                combined_portfolio = agent_portfolio  # fallback
         else:
             combined_portfolio = agent_portfolio
 
