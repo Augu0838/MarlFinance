@@ -1,10 +1,14 @@
-# main.py
-# --------------------------------------------------
 #%%
-import pandas as pd, numpy as np, torch, time
-from Env    import MultiAgentPortfolioEnv
-from Agent  import PortfolioAgent
-from func   import download_close_prices
+########### Import packages ###########
+import pandas as pd
+import numpy as np
+from Env import MultiAgentPortfolioEnv
+from Agent import PortfolioAgent
+import yfinance as yf
+from datetime import datetime, timedelta
+import matplotlib.pylab as plt
+
+from func import download_close_prices
 
 #%% --------------------------------------------------------------------------
 # 1.  ──‑‑‑ DATA  ‑‑‑——————————————————————————————————————————————————
@@ -15,13 +19,19 @@ tickers = pd.read_csv(
 
 data = download_close_prices(tickers, start_day="2018-01-01", period_days=365*3)
 data.dropna(inplace=True)
+print(data.head())
+print(data.shape)
 
-#%% --------------------------------------------------------------------------
-# 2.  ──‑‑‑ ENV + AGENTS  ‑‑‑———————————————————————————————————————————
-num_agents, window_size     = 5, 10
-stocks_per_agent            = num_stocks // num_agents
+#%%
+########### Initialize environment and agents ###########
+num_agents = 5
+window_size = 10
+stocks_pr_agent = num_stocks // num_agents
 
-env = MultiAgentPortfolioEnv(data, num_agents, window_size)
+# Initialize environment
+env = MultiAgentPortfolioEnv(stock_data=data, num_agents=num_agents, window_size=window_size)
+
+# Initialize agents (now requires window_size)
 agents = [
     PortfolioAgent(stock_count=stocks_per_agent, window_size=window_size)
     for _ in range(num_agents)

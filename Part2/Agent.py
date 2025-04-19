@@ -1,4 +1,29 @@
-# agent.py
+"""agent.py
+-------------------------------------------------------------------------------
+A *policy‑gradient* agent for portfolio optimisation.
+
+Why this file exists
+--------------------
+*   The **environment** shows the agent a small window of recent prices.
+*   The **agent** must output a *vector of portfolio weights* (one per stock)
+    that always sums to **1**.
+*   Classic DQN works poorly for that continuous, simplex‑constrained action
+    space, so we use **REINFORCE** with a Dirichlet sampler.
+
+Core ideas implemented here
+---------------------------
+* **PolicyNetwork** – maps state → preferred allocation probabilities.
+* **Dirichlet exploration** – keeps each sampled allocation legal (positive &
+  summing to 1) while adding controllable randomness.
+* **Entropy bonus** – prevents the policy from collapsing too early.
+* **Discounted‑return baseline** – each action is credited according to the
+  *future* Sharpe ratios it eventually produced.
+"""
+
+# ---------------------------------------------------------------------------
+# 0. Imports
+# ---------------------------------------------------------------------------
+from __future__ import annotations
 
 import numpy as np
 import torch
@@ -14,18 +39,21 @@ class DQNetwork(nn.Module):
         # Input: Flattened window of historical prices
         # Output: Portfolio weights for each stock (via Softmax)
         self.model = nn.Sequential(
-            nn.Flatten(),  # flatten the input (e.g., window_size x stock_count)
-            nn.Linear(input_dim, hidden_size),  # hidden layer
-            nn.ReLU(),  # non-linearity
-            nn.Linear(hidden_size, output_dim),  # output layer: one weight per stock
-            nn.Softmax(dim=-1)  # ensures output weights sum to 1
+            nn.Flatten(),                      # (B, window, k) -> (B, window*k)
+            nn.Linear(input_dim, hidden_size), # dense layer
+            nn.ReLU(),                         # non‑linearity
+            nn.Linear(hidden_size, output_dim),
+            nn.Softmax(dim=-1)                 # convert logits → probabilities
         )
 
-    def forward(self, x):
-        return self.model(x)  # pass input through the network
+    def forward(self, x: torch.Tensor) -> torch.Tensor:  # noqa: D401
+        """Return a **(batch, output_dim)** tensor of probabilities."""
+        return self.model(x)
 
 
-# Define the PortfolioAgent using a simple DQN approach
+# ---------------------------------------------------------------------------
+# 2. PortfolioAgent – REINFORCE with entropy regularisation
+# ---------------------------------------------------------------------------
 class PortfolioAgent:
     def __init__(
         self, stock_count, window_size=10, lr=1e-3, gamma=0.99):
