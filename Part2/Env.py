@@ -85,8 +85,8 @@ class MultiAgentPortfolioEnv(gym.Env):
 
         mean  = port_ret.mean(axis=0)                       # (A,)
         std   = port_ret.std(axis=0)  + 1e-6
-
         reward = mean / std
+
         rewards = [reward] * self.num_agents
 
         self.current_step += 1
