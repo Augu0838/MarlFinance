@@ -105,8 +105,9 @@ def run(episodes:int, *, train:bool=True):
 
             state = nxt
 
+        mean_r = total_r/step + 0.00001
         ep_elapsed = time.perf_counter() - ep_t0 # ➍  episode duration
-        print(f"Episode {ep:>3}: Sharpe → {total_r}  "
+        print(f"Episode {ep:>3}: Sharpe → {mean_r[0].round(4)}  "
               f"(took {ep_elapsed:5.2f}s)")
 
         metrics.append(total_r)
