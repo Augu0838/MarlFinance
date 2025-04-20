@@ -2,3 +2,4 @@ gym
 numpy
 yfinance
 torch
+random

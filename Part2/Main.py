@@ -2,50 +2,73 @@
 ########### Import packages ###########
 import pandas as pd
 import numpy as np
-from Env import MultiAgentPortfolioEnv
-from Agent import PortfolioAgent
-import yfinance as yf
-from datetime import datetime, timedelta
+import random
 import matplotlib.pylab as plt
 import torch
 import time
+
+from Env import MultiAgentPortfolioEnv
+from Agent import PortfolioAgent
 
 from portfolio_mng import external_weights
 from func import download_close_prices
 
 #%% --------------------------------------------------------------------------
+# 0.  ──‑‑‑ INPUTS  ‑‑‑——————————————————————————————————————————————————
+num_agents = 5
+window_size = 10
+episodes = 10
+
+#%% --------------------------------------------------------------------------
 # 1.  ──‑‑‑ DATA  ‑‑‑——————————————————————————————————————————————————
 num_stocks     = 50
 start_day = "2018-01-01"
+
 tickers = pd.read_csv(
     "https://github.com/Augu0838/MarlFinance/blob/main/Part2/sp500_tickers.csv?raw=true"
 ).iloc[:num_stocks, 0].tolist()
 
 data = download_close_prices(tickers, start_day=start_day, period_days=365*3)
 data.dropna(inplace=True)
-print(data.head())
-print(data.shape)
 
-#%%
-########### Initialize environment and agents ###########
-num_agents = 5
-window_size = 10
+# 80 / 20 chronological random split
+total_rows   = len(data)
+test_len     = int(total_rows * 0.20)   # 20 %
+max_start    = total_rows - test_len
+
+# choose a random start index, but leave a window_size overlap before it
+test_start   = random.randint(window_size, max_start)
+
+# slice
+train_data = data.iloc[:test_start - window_size]             
+test_data  = data.iloc[test_start - window_size : test_start + test_len]
+
+print('Training and test data loaded')
+
+#%% --------------------------------------------------------------------------
+# 2.  ──‑‑‑ INITIALIZE ENV AND AGENT  ‑‑‑———————————————————————————————————————
+# ------------------------------------------------------------------
 stocks_per_agent = num_stocks // num_agents
 
-# Setup external trader
 external_trader = external_weights(num_stocks=num_stocks, start_day=start_day)
 
-# Modified env to include trader
-env = MultiAgentPortfolioEnv(data, num_agents, window_size, external_trader=external_trader)
+env_train = MultiAgentPortfolioEnv(
+    train_data, num_agents, window_size, external_trader=external_trader
+)
+env_test  = MultiAgentPortfolioEnv(
+    test_data,  num_agents, window_size, external_trader=external_trader
+)
 
-# Initialize agents (now requires window_size)
+env = env_train          # <‑‑‑ run() always talks to the global “env”
+
+# Initialize agents
 agents = [
     PortfolioAgent(stock_count=stocks_per_agent, window_size=window_size)
     for _ in range(num_agents)
 ]
 
 #%% --------------------------------------------------------------------------
-# 3.  ──‑‑‑ CORE LOOP  ‑‑‑———————————————————————————————————————————————
+# 3.  ──‑‑‑ TRAINING LOOP FUNCTION  ‑‑‑———————————————————————————————————————
 def run(episodes:int, *, train:bool=True):
     """
     Returns
@@ -82,8 +105,9 @@ def run(episodes:int, *, train:bool=True):
 
             state = nxt
 
+        mean_r = total_r/step + 0.00001
         ep_elapsed = time.perf_counter() - ep_t0 # ➍  episode duration
-        print(f"Episode {ep:>3}: Sharpe → {total_r}  "
+        print(f"Episode {ep:>3}: Sharpe → {mean_r[0].round(4)}  "
               f"(took {ep_elapsed:5.2f}s)")
 
         metrics.append(total_r)
@@ -105,27 +129,26 @@ def run(episodes:int, *, train:bool=True):
 
 #%% --------------------------------------------------------------------------
 # 4.  ──‑‑‑ TRAIN  ‑‑‑———————————————————————————————————————————————————
-if __name__ == "__main__":
-    train_scores, _ = run(episodes=5, train=True)
+env = env_train
+train_scores, _ = run(episodes=episodes, train=True)
 
-    # optional: save checkpoints
-    for i, ag in enumerate(agents):
-        torch.save(ag.model.state_dict(), f"agent_{i}.pth")
+# optional: save checkpoints
+for i, ag in enumerate(agents):
+    torch.save(ag.model.state_dict(), f"agent_{i}.pth")
 
-    # ----------------------------------------------------------------------
-    # 5.  ──‑‑‑ EVALUATE  ‑‑‑—————————————————————————————————————————————
-    # fresh environment for an out‑of‑sample test period if you like
-    test_env  = MultiAgentPortfolioEnv(data, num_agents, window_size)
-    env = test_env                             # point run() to the test env
-    eval_scores, _, action_logs = run(episodes=1, train=False)
-    print(f"\nEvaluation Sharpe ratios: {eval_scores[-1]}")
+print('Model trained')
 
+#%% ----------------------------------------------------------------------
+# 5.  ──‑‑‑ EVALUATE  ‑‑‑—————————————————————————————————————————————
+env = env_test                             
+eval_scores, _, action_logs = run(episodes=1, train=False)
+print("Evaluation Sharpe:", eval_scores[-1])
 #%% --------------------------------------------------------------------------
 # 6.  ──‑‑‑‑ SHARPE RATIO PLOT  ‑‑‑—————————————————————————————————————————
 
 # Extract necessary data
-returns = np.diff(data.values, axis=0) / data.values[:-1]  # shape (T-1, S)
-dates = data.index[1:]  # align with returns
+returns = np.diff(test_data.values, axis=0) / test_data.values[:-1]  # shape (T-1, S)
+dates = test_data.index[1:]  # align with returns
 
 # Determine actual usable length (safe length after start_idx)
 eval_len = len(action_logs[0])  # number of timesteps in the episode
@@ -168,7 +191,7 @@ for t in range(max_len):
 
 # ------------------ 3. Rolling Sharpe (10-day window) ------------------
 
-def rolling_sharpe(returns, window=10):
+def rolling_sharpe(returns, window=window_size):
     returns = pd.Series(returns)
     mean = returns.rolling(window).mean()
     std = returns.rolling(window).std() + 1e-6

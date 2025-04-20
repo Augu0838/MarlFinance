@@ -107,7 +107,7 @@ class PortfolioAgent:
         returns = torch.tensor(returns, dtype=torch.float32)
         returns = (returns - returns.mean()) / (returns.std() + 1e-6)
 
-        entropy_weight = 0.01  # you can tune this
+        entropy_weight = 0.05  # you can tune this
         policy_loss = []
 
         for log_prob, entropy, R in zip(self.saved_log_probs, self.entropies, returns):
