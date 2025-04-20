@@ -28,7 +28,7 @@ tickers = pd.read_csv(
     "https://github.com/Augu0838/MarlFinance/blob/main/Part2/sp500_tickers.csv?raw=true"
 ).iloc[:num_stocks, 0].tolist()
 
-data = download_close_prices(tickers, start_day=start_day, period_days=365*3)
+data = download_close_prices(tickers, start_day=start_day, period_days=365*5)
 data.dropna(inplace=True)
 
 # 80 / 20 chronological random split
@@ -143,8 +143,9 @@ print('Model trained')
 env = env_test                             
 eval_scores, _, action_logs = run(episodes=1, train=False)
 print("Evaluation Sharpe:", eval_scores[-1])
+
 #%% --------------------------------------------------------------------------
-# 6.  ──‑‑‑‑ SHARPE RATIO PLOT  ‑‑‑—————————————————————————————————————————
+# 6.  ──‑‑‑‑ PROCESS RESULTS  ‑‑‑—————————————————————————————————————————
 
 # Extract necessary data
 returns = np.diff(test_data.values, axis=0) / test_data.values[:-1]  # shape (T-1, S)
@@ -199,41 +200,14 @@ def rolling_sharpe(returns, window=window_size):
 
 sharpe_combined = rolling_sharpe(combined_daily_returns)
 sharpe_external = rolling_sharpe(external_daily_returns)
-days = np.arange(len(sharpe_combined))
-
-# ------------------ 4. Plot ------------------
-
-plt.figure(figsize=(10, 5))
-plt.plot(days, sharpe_combined, label='Combined Portfolio')
-plt.plot(days, sharpe_external, label='External-only Portfolio')
-plt.title('10-Day Rolling Sharpe Ratio')
-plt.xlabel('Day')
-plt.ylabel('Sharpe Ratio')
-plt.legend()
-plt.grid(True)
-plt.tight_layout()
-plt.show()
-# %%
 
 #%% --------------------------------------------------------------------------
-# 7.  ──‑‑‑‑ SHARPE DIFFERENCE PLOT  ‑‑‑———————————————————————————————
-
-# Compute difference between the rolling Sharpe ratios
-sharpe_diff = np.array(sharpe_combined) - np.array(sharpe_external)
-
-# Plot the difference
-plt.figure(figsize=(10, 5))
-plt.plot(days, sharpe_diff, label='Sharpe Ratio Difference (Combined - External)')
-plt.axhline(0, color='gray', linestyle='--', linewidth=1)
-plt.title('10-Day Rolling Sharpe Ratio Difference')
-plt.xlabel('Day')
-plt.ylabel('Sharpe Difference')
-plt.legend()
-plt.grid(True)
-plt.tight_layout()
-plt.show()
-
+# 7.  ──‑‑‑ Plot  --------------------------------------
 import plots as p
+
+p.sharpe_ratios(sharpe_combined, sharpe_external)
+
+p.sharp_difference(sharpe_combined, sharpe_external)
 
 p.cumulative_returns(eval_dates, combined_daily_returns, external_daily_returns)
 
