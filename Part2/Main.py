@@ -78,6 +78,7 @@ def run(episodes:int, *, train:bool=True):
     """
     metrics = []
     action_logs = [] if not train else None  # Only collect actions during evaluation
+    sharpe_per_episode = [] # Used for generating sharpe over episodes plot
     
     for ag in agents:
         ag.model.train(mode=train)
@@ -107,6 +108,10 @@ def run(episodes:int, *, train:bool=True):
 
         mean_r = total_r/step + 0.00001
         ep_elapsed = time.perf_counter() - ep_t0 # ➍  episode duration
+
+        if train: 
+            sharpe_per_episode.append(mean_r[0])
+
         print(f"Episode {ep:>3}: Sharpe → {mean_r[0].round(4)}  "
               f"(took {ep_elapsed:5.2f}s)")
 
@@ -125,12 +130,12 @@ def run(episodes:int, *, train:bool=True):
           f"in {elapsed:,.2f} s "
           f"({elapsed/60:.1f} min)")
 
-    return (np.vstack(metrics), elapsed, action_logs) if not train else (np.vstack(metrics), elapsed)
+    return (np.vstack(metrics), elapsed, action_logs) if not train else (np.vstack(metrics), elapsed, sharpe_per_episode)
 
 #%% --------------------------------------------------------------------------
 # 4.  ──‑‑‑ TRAIN  ‑‑‑———————————————————————————————————————————————————
 env = env_train
-train_scores, _ = run(episodes=episodes, train=True)
+train_scores, _, sharpe_per_episode = run(episodes=episodes, train=True)
 
 # optional: save checkpoints
 for i, ag in enumerate(agents):
@@ -204,6 +209,8 @@ sharpe_external = rolling_sharpe(external_daily_returns)
 #%% --------------------------------------------------------------------------
 # 7.  ──‑‑‑ Plot  --------------------------------------
 import plots as p
+
+p.plot_training_sharpe(sharpe_per_episode)
 
 p.sharpe_ratios(sharpe_combined, sharpe_external)
 
