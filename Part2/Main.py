@@ -209,3 +209,9 @@ plt.legend()
 plt.grid(True)
 plt.tight_layout()
 plt.show()
+
+import plots as p
+
+p.cumulative_returns(eval_dates, combined_daily_returns, external_daily_returns)
+
+p.histogram(combined_daily_returns, external_daily_returns)
