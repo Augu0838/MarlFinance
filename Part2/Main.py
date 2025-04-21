@@ -16,17 +16,17 @@ from func import download_close_prices
 #%% --------------------------------------------------------------------------
 # 0.  ──‑‑‑ INPUTS  ‑‑‑——————————————————————————————————————————————————
 num_agents = 5
-window_size = 10
-episodes = 10
+window_size = 20
+episodes = 1000
 
 #%% --------------------------------------------------------------------------
 # 1.  ──‑‑‑ DATA  ‑‑‑——————————————————————————————————————————————————
-num_stocks     = 50
-start_day = "2018-01-01"
+num_stocks     = 200
+start_day = "2022-01-01"
 
 tickers = pd.read_csv(
     "https://github.com/Augu0838/MarlFinance/blob/main/Part2/sp500_tickers.csv?raw=true"
-).iloc[:num_stocks, 0].tolist()
+).iloc[:num_stocks+1, 0].tolist()
 
 data = download_close_prices(tickers, start_day=start_day, period_days=365*5)
 data.dropna(inplace=True)
@@ -219,3 +219,5 @@ p.sharp_difference(sharpe_combined, sharpe_external)
 p.cumulative_returns(eval_dates, combined_daily_returns, external_daily_returns)
 
 p.histogram(combined_daily_returns, external_daily_returns)
+
+# %%

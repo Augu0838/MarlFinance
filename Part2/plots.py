@@ -5,7 +5,7 @@ from scipy.stats import norm, skew, kurtosis
 # ------------------ Sharpe by episode ------------------
 def plot_training_sharpe(sharpe_series):
     plt.figure(figsize=(8, 4))
-    plt.plot(range(1, len(sharpe_series) + 1), sharpe_series, marker='o')
+    plt.plot(range(1, len(sharpe_series) + 1), sharpe_series, marker='')
     plt.title("Average Sharpe Ratio per Training Episode")
     plt.xlabel("Episode")
     plt.ylabel("Average Sharpe Ratio")
