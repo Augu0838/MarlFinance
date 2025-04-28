@@ -7,17 +7,17 @@ import matplotlib.pylab as plt
 import torch
 import time
 
-from Env import MultiAgentPortfolioEnv
-from Agent import PortfolioAgent
-
 from portfolio_mng import external_weights
 from func import download_close_prices
+
+from Env import MultiAgentPortfolioEnv
+from shared_ac import SharedCritic, Actor, AC_Agent
 
 #%% --------------------------------------------------------------------------
 # 0.  ──‑‑‑ INPUTS  ‑‑‑——————————————————————————————————————————————————
 num_agents = 5
-window_size = 20
-episodes = 1000
+window_size = 10
+episodes = 10
 
 #%% --------------------------------------------------------------------------
 # 1.  ──‑‑‑ DATA  ‑‑‑——————————————————————————————————————————————————
@@ -61,76 +61,103 @@ env_test  = MultiAgentPortfolioEnv(
 
 env = env_train          # <‑‑‑ run() always talks to the global “env”
 
-# Initialize agents
+ # ------------------------- initialise agents -------------------------
+ 
+obs_rows = window_size + 1                     # we added 1 row
+state_dim = obs_rows * num_stocks
+
+# ------------ build shared critic ------------
+critic = SharedCritic(state_dim)
+critic_optim = torch.optim.Adam(critic.parameters(), lr=3e-4)
+
+# ------------ build actors -------------------
 agents = [
-    PortfolioAgent(stock_count=stocks_per_agent, window_size=window_size)
+    AC_Agent(obs_dim=obs_rows * stocks_per_agent,
+             act_dim=stocks_per_agent,
+             actor=Actor(obs_rows * stocks_per_agent, stocks_per_agent))
     for _ in range(num_agents)
-]
+ ]
 
 #%% --------------------------------------------------------------------------
 # 3.  ──‑‑‑ TRAINING LOOP FUNCTION  ‑‑‑———————————————————————————————————————
-def run(episodes:int, *, train:bool=True):
-    """
-    Returns
-    -------
-    metrics : ndarray   shape = (episodes, num_agents)
-    elapsed : float     total seconds spent inside this call
-    """
-    metrics = []
-    action_logs = [] if not train else None  # Only collect actions during evaluation
-    sharpe_per_episode = [] # Used for generating sharpe over episodes plot
-    
-    for ag in agents:
-        ag.model.train(mode=train)
+def run(episodes, *, train=True,
+        gamma=0.99, ent_w=0.01, val_w=0.5):
 
-    t0 = time.perf_counter()      # ➋  start global timer
+    episode_rewards, sharpe_log = [], []
+    action_logs = [] if not train else None
 
-    for ep in range(1, episodes + 1):
-        ep_t0 = time.perf_counter()              # ➌  start episode timer
+    for ep in range(episodes):
         state = env.reset()
-        done, step, total_r = False, 0, np.zeros(num_agents)
-        ep_actions = [] # reset the stored actions when evaluating
 
+        # per‑episode buffers
+        joint_states, global_rewards = [], []
+
+        done = False
         while not done:
-            actions           = [ag.act(st) for ag, st in zip(agents, state)]
-            nxt, r, done, _   = env.step(actions)
-            total_r          += r
-            step             += 1
+            # -------- actors ----------
+            actions = [ag.act(obs) for ag, obs in zip(agents, state)]
+
+            # -------- env -------------
+            nxt_state, reward_vec, done, _ = env.step(actions)
+            # env returns *identical* reward for every agent → pick first
+            r = reward_vec[0]
+
+            # -------- buffers ----------
+            joint = np.concatenate([s.flatten() for s in state])
+            joint_states.append(joint)
+            global_rewards.append(r)
+
+            state = nxt_state
 
             if not train:
-                ep_actions.append(np.vstack(actions))  # Stack agent actions for current step
+                action_logs.append(actions)   # keep one entry per step
+            
+        # ---------- critic forward ----------
+        state_batch = torch.tensor(
+            np.asarray(joint_states, dtype=np.float32))      # ◄ fast, no warning
+        values = critic(state_batch)          # requires_grad = True
 
-            if train:
-                for i, ag in enumerate(agents):
-                    ag.rewards.append(r[i])
+        # ---------- returns & advantages -----------
+        R, returns = 0.0, []
+        for r in reversed(global_rewards):
+            R = r + gamma * R
+            returns.insert(0, R)
+        returns = torch.tensor(returns, dtype=torch.float32)
 
-            state = nxt
+        # stop‑grad for actors, keep graph for critic
+        adv = returns - values.detach()
 
-        mean_r = total_r/step + 0.00001
-        ep_elapsed = time.perf_counter() - ep_t0 # ➍  episode duration
+        # ---------- critic update ------------------
+        critic_optim.zero_grad()
+        value_loss = val_w * (returns - values).pow(2).mean()  # ← has grads
+        value_loss.backward()
+        critic_optim.step()
 
-        if train: 
-            sharpe_per_episode.append(mean_r[0])
+        # ---------- actor updates ------------------
+        actor_params = [p for ag in agents for p in ag.actor.parameters()]
+        actor_optim  = torch.optim.Adam(actor_params, lr=3e-4)
 
-        print(f"Episode {ep:>3}: Sharpe → {mean_r[0].round(4)}  "
-              f"(took {ep_elapsed:5.2f}s)")
+        actor_optim.zero_grad()
+        for ag in agents:
+            policy_loss  = -(torch.stack(ag.logp) * adv.detach()).mean()
+            entropy_loss = -ent_w * torch.stack(ag.ent).mean()
+            (policy_loss + entropy_loss).backward()
+        actor_optim.step()
 
-        metrics.append(total_r)
-        
-        if not train:
-            action_logs.append(ep_actions)  # Save episode's actions
+        for ag in agents:                          # clear episode traces
+            ag.flush()
+
+        # -------- book‑keeping ----------
+        episode_rewards.append(sum(global_rewards))
+        sharpe_log.append(returns.mean().item())
 
         if train:
-            for ag in agents:
-                ag.update()
+            print(f"Ep {ep+1:>3}  mean‑Sharpe = {sharpe_log[-1]:.4f}")
 
-
-    elapsed = time.perf_counter() - t0          # ➎  total duration
-    print(f"\n{'TRAIN' if train else 'EVAL '} finished "
-          f"in {elapsed:,.2f} s "
-          f"({elapsed/60:.1f} min)")
-
-    return (np.vstack(metrics), elapsed, action_logs) if not train else (np.vstack(metrics), elapsed, sharpe_per_episode)
+    if train:
+        return np.array(episode_rewards), None, sharpe_log
+    else:
+        return np.array(episode_rewards), action_logs, sharpe_log
 
 #%% --------------------------------------------------------------------------
 # 4.  ──‑‑‑ TRAIN  ‑‑‑———————————————————————————————————————————————————
@@ -139,7 +166,8 @@ train_scores, _, sharpe_per_episode = run(episodes=episodes, train=True)
 
 # optional: save checkpoints
 for i, ag in enumerate(agents):
-    torch.save(ag.model.state_dict(), f"agent_{i}.pth")
+    torch.save(ag.actor.state_dict(), f"actor_{i}.pth")
+torch.save(critic.state_dict(), "shared_critic.pth")
 
 print('Model trained')
 

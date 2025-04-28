@@ -23,8 +23,10 @@ class MultiAgentPortfolioEnv(gym.Env):
         self.stocks_per_agent = self.num_stocks // num_agents
 
         # --- 2)  gym spaces ------------------------------------------------
-        self.observation_space = spaces.Box(
-            -np.inf, np.inf, shape=(window_size, self.stocks_per_agent), dtype=np.float32
+        self.observation_space = spaces.Box(          # +1 row for trader slice
+            -np.inf, np.inf,
+            shape=(window_size + 1, self.stocks_per_agent),
+            dtype=np.float32
         )
         self.action_space      = spaces.Box(
             0, 1, shape=(self.stocks_per_agent,), dtype=np.float32
@@ -48,7 +50,17 @@ class MultiAgentPortfolioEnv(gym.Env):
         end   = self.current_step
 
         window = self.prices[start:end]                      # (W, S)
-        window = window.reshape(self.window_size,
+
+        # concatenate external‑trader weights for the same date
+        if self.external_trader is not None:
+            date = self.stock_df.index[end-1]
+            if date in self.external_trader.index:
+                ext = self.external_trader.loc[date].values
+            else:
+                ext = np.zeros(self.num_stocks, dtype=np.float32) # first days no data yet
+            window = np.vstack([window, ext])                # (W+1, S)
+
+        window = window.reshape(self.window_size + 1,
                                 self.num_agents,
                                 self.stocks_per_agent)
         return [window[:, i, :] for i in range(self.num_agents)]
