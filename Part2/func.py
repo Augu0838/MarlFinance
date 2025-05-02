@@ -3,7 +3,7 @@ import pandas as pd
 from datetime import datetime, timedelta
 
 def download_close_prices(tickers, start_day, period_days,
-                          min_valid_fraction: float = 0.95) -> pd.DataFrame:
+                          min_valid_fraction: float = 1) -> pd.DataFrame:
     """
     One‑shot download of all tickers, then discard the bad ones.
 
