@@ -6,6 +6,8 @@ import random
 import matplotlib.pylab as plt
 import torch
 import time
+import yfinance as yf
+from datetime import datetime
 
 from Env import MultiAgentPortfolioEnv
 from Agent import PortfolioAgent
@@ -21,14 +23,20 @@ episodes = 10
 
 #%% --------------------------------------------------------------------------
 # 1.  ──‑‑‑ DATA  ‑‑‑——————————————————————————————————————————————————
-num_stocks     = 300
-start_day = "2022-01-01"
+num_stocks     = 10
+start_day = datetime.strptime("2022-01-01", "%Y-%m-%d")
+end_day = datetime.strptime("2025-01-01", "%Y-%m-%d")
 
 tickers = pd.read_csv(
     "https://github.com/Augu0838/MarlFinance/blob/main/Part2/sp500_tickers.csv?raw=true"
 ).iloc[:num_stocks+1, 0].tolist()
 
-data = download_close_prices(tickers, start_day=start_day, period_days=365*5)
+#data = download_close_prices(tickers, start_day=start_day, period_days=365*2)
+
+data = yf.download(tickers, start=start_day, end=end_day, progress=False)["Close"]
+
+data.to_excel("closing_prices.xlsx", index=True)
+
 data.dropna(inplace=True)
 
 # 80 / 20 chronological random split
