@@ -50,54 +50,122 @@ class DQNetwork(nn.Module):
         """Return a **(batch, output_dim)** tensor of probabilities."""
         return self.model(x)
 
+# Class for the critict
+class ValueNetwork(nn.Module):
+    def __init__(self, input_dim, hidden_size=128):
+        super(ValueNetwork, self).__init__()
+        self.model = nn.Sequential(
+            nn.Flatten(),
+            nn.Linear(input_dim, hidden_size),
+            nn.ReLU(),
+            nn.Linear(hidden_size, 1)  # Output a single value estimate
+        )
+        
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        return self.model(x).squeeze(-1)  # (batch,) shape
 
 # ---------------------------------------------------------------------------
 # 2. PortfolioAgent – REINFORCE with entropy regularisation
 # ---------------------------------------------------------------------------
+# class PortfolioAgent:
+#     def __init__(
+#         self, stock_count, window_size=10, lr=1e-3, gamma=0.99):
+#         self.stock_count = stock_count  # number of stocks this agent manages
+#         self.input_dim = window_size * stock_count  # flattened input size
+#         self.entropies = []  # store entropy values per step
+
+#         # Main Q-network
+#         self.model = DQNetwork(self.input_dim, stock_count)
+
+#         # Optimizer
+#         self.optimizer = optim.Adam(self.model.parameters(), lr=lr)
+
+#         # Discount factor for future rewards
+#         self.gamma = gamma
+
+#         # Stores for one episode
+#         self.saved_log_probs = []
+#         self.rewards = []
 class PortfolioAgent:
-    def __init__(
-        self, stock_count, window_size=10, lr=1e-3, gamma=0.99):
-        self.stock_count = stock_count  # number of stocks this agent manages
-        self.input_dim = window_size * stock_count  # flattened input size
-        self.entropies = []  # store entropy values per step
-
-        # Main Q-network
-        self.model = DQNetwork(self.input_dim, stock_count)
-
-        # Optimizer
-        self.optimizer = optim.Adam(self.model.parameters(), lr=lr)
-
-        # Discount factor for future rewards
+    def __init__(self, stock_count, window_size=10, lr=1e-3, gamma=0.99):
+        self.stock_count = stock_count
+        self.input_dim = window_size * stock_count
         self.gamma = gamma
+        
+        self.actor = DQNetwork(self.input_dim, stock_count)
+        self.critic = ValueNetwork(self.input_dim)
 
-        # Stores for one episode
+        self.optimizer_actor = optim.Adam(self.actor.parameters(), lr=lr)
+        self.optimizer_critic = optim.Adam(self.critic.parameters(), lr=lr)
+
         self.saved_log_probs = []
         self.rewards = []
+        self.states = []  # Save states for critic update
+
+
+    # def act(self, state):
+    #     """
+    #     Sample portfolio weights from a Dirichlet distribution centered on the model output.
+    #     Save log-prob for policy gradient training.
+    #     """
+    #     state_tensor = torch.tensor(state.flatten(), dtype=torch.float32).unsqueeze(0)  # convert to torch tensor and add batch dim
+    #     probs = self.model(state_tensor).squeeze()
+
+    #     # Add temperature for exploration; adjust concentration (alpha)
+    #     alpha = probs * 0.05 + 1e-3  # scale to get sharper distributions
+    #     dist = Dirichlet(alpha)
+    #     action = dist.sample()
+    #     log_prob = dist.log_prob(action)
+    #     entropy = dist.entropy()
+
+    #     self.saved_log_probs.append(log_prob)
+    #     self.entropies.append(entropy)
+
+    #     return action.detach().numpy()
 
     def act(self, state):
-        """
-        Sample portfolio weights from a Dirichlet distribution centered on the model output.
-        Save log-prob for policy gradient training.
-        """
-        state_tensor = torch.tensor(state.flatten(), dtype=torch.float32).unsqueeze(0)  # convert to torch tensor and add batch dim
-        probs = self.model(state_tensor).squeeze()
+        state_tensor = torch.tensor(state.flatten(), dtype=torch.float32).unsqueeze(0)
+        probs = self.actor(state_tensor).squeeze()
 
-        # Add temperature for exploration; adjust concentration (alpha)
-        alpha = probs * 0.05 + 1e-3  # scale to get sharper distributions
+        alpha = probs * 0.05 + 1e-3
         dist = Dirichlet(alpha)
         action = dist.sample()
         log_prob = dist.log_prob(action)
-        entropy = dist.entropy()
 
         self.saved_log_probs.append(log_prob)
-        self.entropies.append(entropy)
+        self.states.append(state_tensor)
 
         return action.detach().numpy()
 
+    # def update(self):
+    #     """
+    #     REINFORCE with entropy regularization.
+    #     """
+    #     R = 0
+    #     returns = []
+    #     for r in reversed(self.rewards):
+    #         R = r + self.gamma * R
+    #         returns.insert(0, R)
+
+    #     returns = torch.tensor(returns, dtype=torch.float32)
+    #     returns = (returns - returns.mean()) / (returns.std() + 1e-6)
+
+    #     entropy_weight = 0.05  # you can tune this
+    #     policy_loss = []
+
+    #     for log_prob, entropy, R in zip(self.saved_log_probs, self.entropies, returns):
+    #         loss = -log_prob * R - entropy_weight * entropy
+    #         policy_loss.append(loss)
+
+    #     self.optimizer.zero_grad()
+    #     torch.stack(policy_loss).sum().backward()
+    #     self.optimizer.step()
+
+    #     # Clear episode history
+    #     self.saved_log_probs.clear()
+    #     self.rewards.clear()
+    #     self.entropies.clear()
     def update(self):
-        """
-        REINFORCE with entropy regularization.
-        """
         R = 0
         returns = []
         for r in reversed(self.rewards):
@@ -107,18 +175,28 @@ class PortfolioAgent:
         returns = torch.tensor(returns, dtype=torch.float32)
         returns = (returns - returns.mean()) / (returns.std() + 1e-6)
 
-        entropy_weight = 0.05  # you can tune this
-        policy_loss = []
+        # Critic: train to predict returns
+        state_batch = torch.cat(self.states)
+        values = self.critic(state_batch)
+        critic_loss = nn.MSELoss()(values, returns)
 
-        for log_prob, entropy, R in zip(self.saved_log_probs, self.entropies, returns):
-            loss = -log_prob * R - entropy_weight * entropy
-            policy_loss.append(loss)
+        self.optimizer_critic.zero_grad()
+        critic_loss.backward()
+        self.optimizer_critic.step()
 
-        self.optimizer.zero_grad()
-        torch.stack(policy_loss).sum().backward()
-        self.optimizer.step()
+        # Actor: train with advantage
+        with torch.no_grad():
+            advantages = returns - self.critic(state_batch)
 
-        # Clear episode history
+        actor_loss = []
+        for log_prob, advantage in zip(self.saved_log_probs, advantages):
+            actor_loss.append(-log_prob * advantage)
+
+        self.optimizer_actor.zero_grad()
+        torch.stack(actor_loss).sum().backward()
+        self.optimizer_actor.step()
+
+        # Clear memory
         self.saved_log_probs.clear()
         self.rewards.clear()
-        self.entropies.clear()
+        self.states.clear()
