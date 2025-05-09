@@ -13,34 +13,40 @@ from Agent import PortfolioAgent
 from portfolio_mng import external_weights
 from func import download_close_prices
 
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")  # <<< CHANGED
+print(f"Using device: {device}") 
+
 #%% --------------------------------------------------------------------------
 # 0.  ──‑‑‑ INPUTS  ‑‑‑——————————————————————————————————————————————————
 num_agents = 5
+stocks_per_agent = 10
+num_stocks = num_agents * stocks_per_agent
+
 window_size = 20
 episodes = 10
 
 #%% --------------------------------------------------------------------------
 # 1.  ──‑‑‑ DATA  ‑‑‑——————————————————————————————————————————————————
-num_stocks     = 20
 start_day = "2022-01-01"
 
 tickers = pd.read_csv(
     "https://github.com/Augu0838/MarlFinance/blob/main/Part2/sp500_tickers.csv?raw=true"
-).iloc[:num_stocks+1, 0].tolist()
+).iloc[:num_stocks, 0].tolist()
 
-data = download_close_prices(tickers, start_day=start_day, period_days=365*3)
+data = download_close_prices(tickers, start_day=start_day, period_days=365*2)
 data.dropna(inplace=True)
 
 # 80 / 20 chronological random split
-total_rows   = len(data)
-test_len     = int(total_rows * 0.20)   # 20 %
-max_start    = total_rows - test_len
+total_rows = len(data)
+test_len = int(total_rows * 0.20)
+max_start = total_rows - test_len
 
-# choose a random start index, but leave a window_size overlap before it
-test_start   = random.randint(window_size, max_start)
+# Ensure training data is long enough
+min_train_rows = window_size + 1
+test_start = random.randint(min_train_rows, max_start)
 
-# slice
-train_data = data.iloc[:test_start - window_size]             
+# Corrected Slicing
+train_data = data.iloc[:test_start]  # ← up to the start of test set
 test_data  = data.iloc[test_start - window_size : test_start + test_len]
 
 print('Training and test data loaded')
@@ -48,7 +54,6 @@ print('Training and test data loaded')
 #%% --------------------------------------------------------------------------
 # 2.  ──‑‑‑ INITIALIZE ENV AND AGENT  ‑‑‑———————————————————————————————————————
 # ------------------------------------------------------------------
-stocks_per_agent = num_stocks // num_agents
 
 external_trader = external_weights(num_stocks=num_stocks, start_day=start_day)
 
@@ -59,7 +64,7 @@ env_test  = MultiAgentPortfolioEnv(
     test_data,  num_agents, window_size, external_trader=external_trader
 )
 
-env = env_train          # <‑‑‑ run() always talks to the global “env”
+env = env_train         
 
 # Initialize agents
 agents = [
@@ -135,17 +140,28 @@ def run(episodes:int, *, train:bool=True):
 
 #%% --------------------------------------------------------------------------
 # 4.  ──‑‑‑ TRAIN  ‑‑‑———————————————————————————————————————————————————
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 env = env_train
 train_scores, _, sharpe_per_episode = run(episodes=episodes, train=True)
 
-# optional: save checkpoints
+# Save model
 for i, ag in enumerate(agents):
-    torch.save(ag.actor.state_dict(), f"agent_{i}.pth")
+    torch.save({
+        'actor_state_dict': ag.actor.state_dict(),
+        'critic_state_dict': ag.critic.state_dict()
+    }, f"agent_{i}_checkpoint.pth")
 
 print('Model trained')
 
 #%% ----------------------------------------------------------------------
 # 5.  ──‑‑‑ EVALUATE  ‑‑‑—————————————————————————————————————————————
+
+# Load memory
+for i, ag in enumerate(agents):
+    checkpoint = torch.load(f"agent_{i}_checkpoint.pth", map_location=device)
+    ag.actor.load_state_dict(checkpoint['actor_state_dict'])
+    ag.critic.load_state_dict(checkpoint['critic_state_dict'])
+
 env = env_test                             
 eval_scores, _, action_logs = run(episodes=1, train=False)
 print("Evaluation Sharpe:", eval_scores[-1])

@@ -38,19 +38,27 @@ class MultiAgentPortfolioEnv(gym.Env):
         return self._get_obs()
 
     # ----------------------------------------------------------------------
-    def _get_obs(self):
-        """
-        Returns a list with len=num_agents, each of shape
-        (window_size, stocks_per_agent)
-        No Python loops: one reshape + one slice.
-        """
-        start = self.current_step - self.window_size
-        end   = self.current_step
+    # def _get_obs(self):
+    #     """
+    #     Returns a list with len=num_agents, each of shape
+    #     (window_size, stocks_per_agent)
+    #     No Python loops: one reshape + one slice.
+    #     """
+    #     start = self.current_step - self.window_size
+    #     end   = self.current_step
 
-        window = self.prices[start:end]                      # (W, S)
-        window = window.reshape(self.window_size,
-                                self.num_agents,
-                                self.stocks_per_agent)
+    #     window = self.prices[start:end]                      # (W, S)
+    #     window = window.reshape(self.window_size,
+    #                             self.num_agents,
+    #                             self.stocks_per_agent)
+        
+    #     return [window[:, i, :] for i in range(self.num_agents)]
+    def _get_obs(self):
+        start = self.current_step - self.window_size
+        end = self.current_step
+
+        window = self.prices[start:end]  # (W, S)
+        window = window.reshape(self.window_size, self.num_agents, self.stocks_per_agent)
         return [window[:, i, :] for i in range(self.num_agents)]
 
     # ----------------------------------------------------------------------
