@@ -17,7 +17,7 @@ from func import download_close_prices
 # 0.  ──‑‑‑ INPUTS  ‑‑‑——————————————————————————————————————————————————
 num_agents = 5
 window_size = 20
-episodes = 50
+episodes = 1000
 
 #%% --------------------------------------------------------------------------
 # 1.  ──‑‑‑ DATA  ‑‑‑——————————————————————————————————————————————————
@@ -28,7 +28,7 @@ tickers = pd.read_csv(
     "https://github.com/Augu0838/MarlFinance/blob/main/Part2/sp500_tickers.csv?raw=true"
 ).iloc[:num_stocks+1, 0].tolist()
 
-data = download_close_prices(tickers, start_day=start_day, period_days=365*5)
+data = download_close_prices(tickers, start_day=start_day, period_days=365*3)
 data.dropna(inplace=True)
 
 # 80 / 20 chronological random split
