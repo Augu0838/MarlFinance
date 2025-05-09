@@ -17,11 +17,11 @@ from func import download_close_prices
 # 0.  ──‑‑‑ INPUTS  ‑‑‑——————————————————————————————————————————————————
 num_agents = 5
 window_size = 20
-episodes = 1000
+episodes = 10
 
 #%% --------------------------------------------------------------------------
 # 1.  ──‑‑‑ DATA  ‑‑‑——————————————————————————————————————————————————
-num_stocks     = 500
+num_stocks     = 20
 start_day = "2022-01-01"
 
 tickers = pd.read_csv(
