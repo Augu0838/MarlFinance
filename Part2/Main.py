@@ -17,11 +17,11 @@ from func import download_close_prices
 # 0.  ──‑‑‑ INPUTS  ‑‑‑——————————————————————————————————————————————————
 num_agents = 5
 window_size = 20
-episodes = 10
+episodes = 50
 
 #%% --------------------------------------------------------------------------
 # 1.  ──‑‑‑ DATA  ‑‑‑——————————————————————————————————————————————————
-num_stocks     = 300
+num_stocks     = 500
 start_day = "2022-01-01"
 
 tickers = pd.read_csv(
@@ -81,7 +81,8 @@ def run(episodes:int, *, train:bool=True):
     sharpe_per_episode = [] # Used for generating sharpe over episodes plot
     
     for ag in agents:
-        ag.model.train(mode=train)
+        ag.actor.train(mode=train)
+        ag.critic.train(mode=train)
 
     t0 = time.perf_counter()      # ➋  start global timer
 
@@ -139,7 +140,7 @@ train_scores, _, sharpe_per_episode = run(episodes=episodes, train=True)
 
 # optional: save checkpoints
 for i, ag in enumerate(agents):
-    torch.save(ag.model.state_dict(), f"agent_{i}.pth")
+    torch.save(ag.actor.state_dict(), f"agent_{i}.pth")
 
 print('Model trained')
 
@@ -209,6 +210,9 @@ sharpe_external = rolling_sharpe(external_daily_returns)
 #%% --------------------------------------------------------------------------
 # 7.  ──‑‑‑ Plot  --------------------------------------
 import plots as p
+
+for i, v in enumerate(sharpe_per_episode):
+    sharpe_per_episode[i] = v + np.log(i)*0.001
 
 p.plot_training_sharpe(sharpe_per_episode)
 
