@@ -13,7 +13,7 @@ from Agent import PortfolioAgent
 from portfolio_mng import external_weights
 from func import download_close_prices
 
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")  # <<< CHANGED
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu") 
 print(f"Using device: {device}") 
 
 #%% --------------------------------------------------------------------------
@@ -240,4 +240,3 @@ p.cumulative_returns(eval_dates, combined_daily_returns, external_daily_returns)
 
 p.histogram(combined_daily_returns, external_daily_returns)
 
-# %%
