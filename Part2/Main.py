@@ -10,7 +10,7 @@ import time
 from Env import MultiAgentPortfolioEnv
 from Agent import PortfolioAgent
 
-from portfolio_mng import external_weights
+from portfolio_mng_new import external_weights_new
 from func import download_close_prices
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu") 
@@ -54,12 +54,31 @@ else:
     data.to_pickle(cache_file)
     print("Data cached to:", cache_file)
 
+# 80 / 20 chronological random split
+total_rows = len(data)
+test_len = int(total_rows * 0.20)
+max_start = total_rows - test_len
+
+# Ensure training data is long enough
+min_train_rows = window_size + 1
+test_start = random.randint(min_train_rows, max_start)
+
+# Corrected Slicing
+train_data = data.iloc[:test_start]  # ← up to the start of test set
+test_data  = data.iloc[test_start - window_size : test_start + test_len]
+
+print('Training and test data loaded')
 
 #%% --------------------------------------------------------------------------
 # 2.  ──‑‑‑ INITIALIZE ENV AND AGENT  ‑‑‑———————————————————————————————————————
 # ------------------------------------------------------------------
-
-external_trader = external_weights(num_stocks=num_stocks, start_day=start_day)
+external_trader = external_weights_new(data, 
+                                  momentum_lookback=50,
+                                  vol_lookback=20,
+                                  meanrev_short=5, 
+                                  meanrev_long=20,
+                                  top_quantile=0.1,
+                                  band=1.0)
 
 env_train = MultiAgentPortfolioEnv(
     train_data, num_agents, window_size, external_trader=external_trader
@@ -93,10 +112,10 @@ def run(episodes:int, *, train:bool=True):
         ag.actor.train(mode=train)
         ag.critic.train(mode=train)
 
-    t0 = time.perf_counter()      # ➋  start global timer
+    t0 = time.perf_counter()      
 
     for ep in range(1, episodes + 1):
-        ep_t0 = time.perf_counter()              # ➌  start episode timer
+        ep_t0 = time.perf_counter()             
         state = env.reset()
         done, step, total_r = False, 0, np.zeros(num_agents)
         ep_actions = [] # reset the stored actions when evaluating
