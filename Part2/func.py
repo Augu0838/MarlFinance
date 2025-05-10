@@ -2,8 +2,7 @@ import yfinance as yf
 import pandas as pd
 from datetime import datetime, timedelta
 
-def download_close_prices(tickers, start_day, period_days,
-                          min_valid_fraction: float = 1) -> pd.DataFrame:
+def download_close_prices(tickers, start_day, period_days) -> pd.DataFrame:
     """
     One‑shot download of all tickers, then discard the bad ones.
 
@@ -23,10 +22,18 @@ def download_close_prices(tickers, start_day, period_days,
         df = df.to_frame()
 
     # keep only those columns that have enough usable data
-    good_cols = df.notna().mean() >= min_valid_fraction
+    valid_fractions = df.notna().mean()
+    good_cols = valid_fractions >= 1
+
+    # Print discarded tickers
+    discarded = good_cols[~good_cols].index.tolist()
+    if discarded:
+        print("Discarded tickers due to insufficient data:", discarded)
+
     clean_df  = df.loc[:, good_cols].dropna(how="all")
 
     if clean_df.empty:
         raise ValueError("No tickers with sufficient data were downloaded.")
 
+    print(f"Number of stocks returned: {clean_df.shape[1]}")
     return clean_df

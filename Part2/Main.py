@@ -19,7 +19,7 @@ print(f"Using device: {device}")
 #%% --------------------------------------------------------------------------
 # 0.  ──‑‑‑ INPUTS  ‑‑‑——————————————————————————————————————————————————
 num_agents = 5
-stocks_per_agent = 10
+stocks_per_agent = 98
 num_stocks = num_agents * stocks_per_agent
 
 window_size = 20
@@ -27,29 +27,33 @@ episodes = 10
 
 #%% --------------------------------------------------------------------------
 # 1.  ──‑‑‑ DATA  ‑‑‑——————————————————————————————————————————————————
+import os
+
 start_day = "2022-01-01"
+cache_file = "cached_data.pkl"
 
-tickers = pd.read_csv(
-    "https://github.com/Augu0838/MarlFinance/blob/main/Part2/sp500_tickers.csv?raw=true"
-).iloc[:num_stocks, 0].tolist()
+# Try loading cached data
+if os.path.exists(cache_file):
+    print("Loading cached data...")
+    data = pd.read_pickle(cache_file)
+else:
+    print("Downloading fresh data...")
+    tickers = pd.read_csv(
+        "https://github.com/Augu0838/MarlFinance/blob/main/Part2/sp500_tickers.csv?raw=true"
+    ).iloc[:num_stocks+10, 0].tolist()
 
-data = download_close_prices(tickers, start_day=start_day, period_days=365*2)
-data.dropna(inplace=True)
+    data = download_close_prices(tickers, start_day=start_day, period_days=365*3)
+    data.dropna(inplace=True)
 
-# 80 / 20 chronological random split
-total_rows = len(data)
-test_len = int(total_rows * 0.20)
-max_start = total_rows - test_len
+    if data.shape[1] < num_stocks:
+        raise ValueError(f"Only {data.shape[1]} tickers available, but {num_stocks} required.")
+    else:
+        data = data.iloc[:, :num_stocks]
 
-# Ensure training data is long enough
-min_train_rows = window_size + 1
-test_start = random.randint(min_train_rows, max_start)
+    # Save to file
+    data.to_pickle(cache_file)
+    print("Data cached to:", cache_file)
 
-# Corrected Slicing
-train_data = data.iloc[:test_start]  # ← up to the start of test set
-test_data  = data.iloc[test_start - window_size : test_start + test_len]
-
-print('Training and test data loaded')
 
 #%% --------------------------------------------------------------------------
 # 2.  ──‑‑‑ INITIALIZE ENV AND AGENT  ‑‑‑———————————————————————————————————————

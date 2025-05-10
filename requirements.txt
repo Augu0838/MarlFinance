@@ -1,6 +1,6 @@
 gym
 numpy
-yfinance
+yfinance==0.2.59
 torch
 random
 pandas
