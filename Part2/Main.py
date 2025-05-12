@@ -18,19 +18,17 @@ print(f"Using device: {device}")
 
 #%% --------------------------------------------------------------------------
 # 0.  ──‑‑‑ INPUTS  ‑‑‑——————————————————————————————————————————————————
-num_agents = 5
-stocks_per_agent = 98
+num_agents = 8
+stocks_per_agent = 59
 num_stocks = num_agents * stocks_per_agent
 
 window_size = 20
-episodes = 10
+episodes = 2000
 
 #%% --------------------------------------------------------------------------
 # 1.  ──‑‑‑ DATA  ‑‑‑——————————————————————————————————————————————————
-import os
-
 start_day = "2022-01-01"
-cache_file = "cached_data.pkl"
+cache_file = f"cached_data_{num_agents}_{num_stocks}_{window_size}.pkl"
 
 # Try loading cached data
 if os.path.exists(cache_file):
@@ -123,8 +121,8 @@ def run(episodes:int, *, train:bool=True):
         while not done:
             actions           = [ag.act(st) for ag, st in zip(agents, state)]
             nxt, r, done, _   = env.step(actions)
-            total_r          += r
-            step             += 1
+            total_r          = r + total_r
+            step             = 1 + step
 
             if not train:
                 ep_actions.append(np.vstack(actions))  # Stack agent actions for current step
@@ -250,9 +248,6 @@ sharpe_external = rolling_sharpe(external_daily_returns)
 # 7.  ──‑‑‑ Plot  --------------------------------------
 import plots as p
 
-for i, v in enumerate(sharpe_per_episode):
-    sharpe_per_episode[i] = v + np.log(i)*0.001
-
 p.plot_training_sharpe(sharpe_per_episode)
 
 p.sharpe_ratios(sharpe_combined, sharpe_external)
@@ -263,3 +258,5 @@ p.cumulative_returns(eval_dates, combined_daily_returns, external_daily_returns)
 
 p.histogram(combined_daily_returns, external_daily_returns)
 
+
+# %%
