@@ -6,6 +6,7 @@ import random
 import matplotlib.pylab as plt
 import torch
 import time
+import os
 
 from Env import MultiAgentPortfolioEnv
 from Agent import PortfolioAgent
@@ -18,12 +19,12 @@ print(f"Using device: {device}")
 
 #%% --------------------------------------------------------------------------
 # 0.  ──‑‑‑ INPUTS  ‑‑‑——————————————————————————————————————————————————
-num_agents = 8
-stocks_per_agent = 59
+num_agents = 5
+stocks_per_agent = 2
 num_stocks = num_agents * stocks_per_agent
 
 window_size = 20
-episodes = 2000
+episodes = 300
 
 #%% --------------------------------------------------------------------------
 # 1.  ──‑‑‑ DATA  ‑‑‑——————————————————————————————————————————————————
@@ -258,5 +259,45 @@ p.cumulative_returns(eval_dates, combined_daily_returns, external_daily_returns)
 
 p.histogram(combined_daily_returns, external_daily_returns)
 
+
+
+# %%
+import numpy as np
+import matplotlib.pyplot as plt
+
+# --- 1) Build the combined-weights array across time ---
+combined_list = []
+for t, step in enumerate(action_logs[0]):
+    # step: (num_agents, stocks_per_agent)
+    agent_w = step.flatten()   # shape (S,)
+
+    # fetch external weights (or zeros if missing)
+    if date in external_trader.index:
+        ext_w = external_trader.loc[date].values.astype(np.float32)
+    else:
+        ext_w = np.zeros_like(agent_w)
+
+    # combine and renormalize
+    combo = agent_w + ext_w
+    combo /= combo.sum()
+
+    combined_list.append(combo)
+
+combined = np.vstack(combined_list)     # shape (T, S)
+
+# --- 2) Compute the time‐average combined weight per stock ---
+avg_combined = combined.mean(axis=0)    # shape (S,); sums to 1
+avg_ext = ext_w.mean(axis=0)            # shape (S,); sums to 1
+# --- 3) Plot with tickers on the x‐axis ---
+tickers = test_data.columns.tolist()    # length S
+
+plt.figure(figsize=(12,4))
+plt.bar(tickers, avg_combined)
+plt.xticks(rotation=90, fontsize=6)
+plt.xlabel("Stock Ticker")
+plt.ylabel("Average Combined Portfolio Weight")
+plt.title("Average Combined Portfolio Weights During Evaluation")
+plt.tight_layout()
+plt.show()
 
 # %%
