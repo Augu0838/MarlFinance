@@ -16,17 +16,18 @@ from Agent import PortfolioAgent
 from portfolio_mng_new import external_weights_new
 from func import download_close_prices
 
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu") 
+#device = torch.device("cuda" if torch.cuda.is_available() else "cpu") 
+device = torch.device("cpu") 
 print(f"Using device: {device}") 
 
 #%% --------------------------------------------------------------------------
 # 0.  ──‑‑‑ INPUTS  ‑‑‑——————————————————————————————————————————————————
-num_agents = 5
-stocks_per_agent = 2
+num_agents = 1
+stocks_per_agent = 98*5
 num_stocks = num_agents * stocks_per_agent
 
 window_size = 20
-episodes = 30
+episodes = 200
 
 #%% --------------------------------------------------------------------------
 # 1.  ──‑‑‑ DATA  ‑‑‑——————————————————————————————————————————————————

@@ -73,7 +73,8 @@ class PortfolioAgent:
         self.input_dim = window_size * stock_count
         self.gamma = gamma
         
-        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")  
+        self.device = torch.device("cpu")  
+        #self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")  
 
         self.actor = DQNetwork(self.input_dim, stock_count).to(self.device)      
         self.critic = ValueNetwork(self.input_dim).to(self.device)
@@ -89,7 +90,7 @@ class PortfolioAgent:
         state_tensor = torch.tensor(state.flatten(), dtype=torch.float32, device=self.device).unsqueeze(0)
         probs = self.actor(state_tensor).squeeze()
 
-        alpha = probs * 0.2 + 1e-3
+        alpha = probs * 2.0 + 1e-2
         dist = Dirichlet(alpha)
         action = dist.sample()
         log_prob = dist.log_prob(action)
