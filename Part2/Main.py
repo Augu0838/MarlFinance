@@ -136,7 +136,8 @@ def run(episodes:int, *, train:bool=True):
             if train:
                 for i, ag in enumerate(agents):
                     ag.rewards.append(r[i])
-                    ag.update_single()
+                    if step % 5 == 0:
+                        ag.update_single()
 
             state = nxt
 
@@ -261,62 +262,6 @@ p.cumulative_returns(eval_dates, combined_daily_returns, external_daily_returns)
 
 p.histogram(combined_daily_returns, external_daily_returns)
 
+p.weights_plot(action_logs, external_trader, test_data, date)
 
 
-# %%
-# --- 1) Build the combined-weights array across time ---
-def weights_plot(action_logs, external_trader, test_data): 
-
-    combined_list = []
-    ext_list      = []
-    
-    for t, step in enumerate(action_logs[0]):
-        # step: (num_agents, stocks_per_agent)
-        agent_w = step.flatten()   # shape (S,)
-
-        # fetch external weights (or zeros if missing)
-        if date in external_trader.index:
-            ext_w = external_trader.loc[date].values.astype(np.float32)
-        else:
-            ext_w = np.zeros_like(agent_w)
-
-        ext_list.append(ext_w)
-
-        # combine and renormalize
-        combo = agent_w + ext_w
-        combo /= combo.sum()
-
-        combined_list.append(combo)
-
-    # stack into arrays of shape (T, S)
-    combined = np.vstack(combined_list)
-    ext_only = np.vstack(ext_list)
-
-    # time‐average across the evaluation episode
-    avg_combined = combined.mean(axis=0)
-    avg_ext      = ext_only.mean(axis=0)
-
-    tickers = test_data.columns.tolist()  # length S
-
-    # create a figure with two rows
-    fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(14, 8), sharex=True)
-
-    # top: combined weights
-    ax1.bar(tickers, avg_combined)
-    ax1.set_ylabel("Average Combined Weight")
-    ax1.set_title("Combined Portfolio vs. External Strategy")
-    ax1.tick_params(axis="x", which="both", bottom=False, labelbottom=False)
-
-    # bottom: external‐only weights
-    ax2.bar(tickers, avg_ext)
-    ax2.set_ylabel("Average External Weight")
-    ax2.set_xlabel("Stock Ticker")
-    ax2.tick_params(axis="x", rotation=90, labelsize=6)
-
-    plt.tight_layout()
-    plt.show()
-
-weights_plot(action_logs, external_trader, test_data)
-
-
-# %%
