@@ -98,6 +98,40 @@ class PortfolioAgent:
         self.states.append(state_tensor)
 
         return action.detach().cpu().numpy()
+    
+    def update_single(self):
+        if len(self.rewards) < 1:
+            return
+
+        # Prepare single step
+        R = self.rewards[-1]
+        state_tensor = self.states[-1]
+
+        return_tensor = torch.tensor([R], dtype=torch.float32, device=self.device)
+
+        # Critic update
+        value = self.critic(state_tensor)
+        critic_loss = nn.MSELoss()(value.unsqueeze(0), return_tensor)
+
+        self.optimizer_critic.zero_grad()
+        critic_loss.backward()
+        self.optimizer_critic.step()
+
+        # Actor update
+        with torch.no_grad():
+            advantage = return_tensor - value.detach()
+
+        actor_loss = -self.saved_log_probs[-1] * advantage
+
+        self.optimizer_actor.zero_grad()
+        actor_loss.backward()
+        self.optimizer_actor.step()
+
+        # Clear only most recent memory
+        self.rewards.pop()
+        self.saved_log_probs.pop()
+        self.states.pop()
+
 
     def update(self):
         R = 0
