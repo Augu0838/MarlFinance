@@ -9,7 +9,6 @@ import time
 import os
 import plots as p
 
-
 from Env import MultiAgentPortfolioEnv
 from Agent import PortfolioAgent
 
@@ -28,6 +27,9 @@ num_stocks = num_agents * stocks_per_agent
 
 window_size = 20
 episodes = 200
+
+show_graphs = True
+alpha = 0.05
 
 #%% --------------------------------------------------------------------------
 # 1.  ──‑‑‑ DATA  ‑‑‑——————————————————————————————————————————————————
@@ -98,7 +100,7 @@ env = env_train
 
 # Initialize agents
 agents = [
-    PortfolioAgent(stock_count=stocks_per_agent, window_size=window_size)
+    PortfolioAgent(stock_count=stocks_per_agent, window_size=window_size, alpha_scale=alpha)
     for _ in range(num_agents)
 ]
 
@@ -139,7 +141,7 @@ def run(episodes:int, *, train:bool=True):
             if train:
                 for i, ag in enumerate(agents):
                     ag.rewards.append(r[i])
-                    if step % 5 == 0:
+                    if step % 1 == 0: # 5 Decides frequency of training
                         ag.update_single()
 
             state = nxt
@@ -166,7 +168,7 @@ def run(episodes:int, *, train:bool=True):
 
 #%% --------------------------------------------------------------------------
 # 4.  ──‑‑‑ TRAIN  ‑‑‑———————————————————————————————————————————————————
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+device = torch.device("cpu")
 env = env_train
 train_scores, _, sharpe_per_episode = run(episodes=episodes, train=True)
 
@@ -322,17 +324,18 @@ print("External Sharpe Ratio:", mean_sharpe_external.round(4))
 #%% --------------------------------------------------------------------------
 # 7.  ──‑‑‑ Plot  --------------------------------------
 
-#p.plot_training_sharpe(sharpe_per_episode)
+if show_graphs:
+    #p.plot_training_sharpe(sharpe_per_episode)
 
-p.sharpe_ratios(sharpe_combined, sharpe_external)
+    p.sharpe_ratios(sharpe_combined, sharpe_external)
 
-p.sharp_difference(sharpe_combined, sharpe_external)
+    p.sharp_difference(sharpe_combined, sharpe_external)
 
-p.cumulative_returns(eval_dates, combined_daily_returns, external_daily_returns)
+    p.cumulative_returns(eval_dates, combined_daily_returns, external_daily_returns)
 
-p.histogram(combined_daily_returns, external_daily_returns)
+    p.histogram(combined_daily_returns, external_daily_returns)
 
-p.weights_plot(action_logs, external_trader, test_data, date)
+    p.weights_plot(action_logs, external_trader, test_data, date)
 
 
 

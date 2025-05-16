@@ -68,10 +68,11 @@ class ValueNetwork(nn.Module):
 # ---------------------------------------------------------------------------
 
 class PortfolioAgent:
-    def __init__(self, stock_count, window_size=10, lr=1e-3, gamma=0.99):
+    def __init__(self, stock_count, window_size=10, lr=1e-3, gamma=0.99, alpha_scale=0.25):
         self.stock_count = stock_count
         self.input_dim = window_size * stock_count
         self.gamma = gamma
+        self.alpha_scale = alpha_scale
         
         self.device = torch.device("cpu")  
         #self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")  
@@ -90,7 +91,7 @@ class PortfolioAgent:
         state_tensor = torch.tensor(state.flatten(), dtype=torch.float32, device=self.device).unsqueeze(0)
         probs = self.actor(state_tensor).squeeze()
 
-        alpha = probs * 2.0 + 1e-2
+        alpha = probs * self.alpha_scale + 1e-2
         dist = Dirichlet(alpha)
         action = dist.sample()
         log_prob = dist.log_prob(action)
