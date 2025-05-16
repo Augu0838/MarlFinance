@@ -2,6 +2,5 @@ gym
 numpy
 yfinance==0.2.59
 torch
-random
 pandas
 matplotlib

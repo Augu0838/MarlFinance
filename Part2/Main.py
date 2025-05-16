@@ -28,8 +28,8 @@ episodes = 300
 
 #%% --------------------------------------------------------------------------
 # 1.  ──‑‑‑ DATA  ‑‑‑——————————————————————————————————————————————————
-start_day = "2022-01-01"
-cache_file = f"cached_data_{num_agents}_{num_stocks}_{window_size}.pkl"
+start_day = "2022-05-01"
+cache_file = f"cached_data_{num_stocks}_{start_day}.pkl"
 
 # Try loading cached data
 if os.path.exists(cache_file):
@@ -60,11 +60,16 @@ max_start = total_rows - test_len
 
 # Ensure training data is long enough
 min_train_rows = window_size + 1
-test_start = random.randint(min_train_rows, max_start)
+#test_start = random.randint(min_train_rows, max_start)
+# change test start to include 2025-05-01
+test_start = max_start
+
 
 # Corrected Slicing
 train_data = data.iloc[:test_start]  # ← up to the start of test set
 test_data  = data.iloc[test_start - window_size : test_start + test_len]
+# Print forst day in test data
+print("First day in test data:", test_data.index[0])
 
 print('Training and test data loaded')
 
@@ -131,6 +136,7 @@ def run(episodes:int, *, train:bool=True):
             if train:
                 for i, ag in enumerate(agents):
                     ag.rewards.append(r[i])
+                    ag.update_single()
 
             state = nxt
 
@@ -147,10 +153,6 @@ def run(episodes:int, *, train:bool=True):
         
         if not train:
             action_logs.append(ep_actions)  # Save episode's actions
-
-        if train:
-            for ag in agents:
-                ag.update()
 
 
     elapsed = time.perf_counter() - t0          # ➎  total duration
@@ -249,7 +251,7 @@ sharpe_external = rolling_sharpe(external_daily_returns)
 # 7.  ──‑‑‑ Plot  --------------------------------------
 import plots as p
 
-p.plot_training_sharpe(sharpe_per_episode)
+#p.plot_training_sharpe(sharpe_per_episode)
 
 p.sharpe_ratios(sharpe_combined, sharpe_external)
 
@@ -262,42 +264,59 @@ p.histogram(combined_daily_returns, external_daily_returns)
 
 
 # %%
-import numpy as np
-import matplotlib.pyplot as plt
-
 # --- 1) Build the combined-weights array across time ---
-combined_list = []
-for t, step in enumerate(action_logs[0]):
-    # step: (num_agents, stocks_per_agent)
-    agent_w = step.flatten()   # shape (S,)
+def weights_plot(action_logs, external_trader, test_data): 
 
-    # fetch external weights (or zeros if missing)
-    if date in external_trader.index:
-        ext_w = external_trader.loc[date].values.astype(np.float32)
-    else:
-        ext_w = np.zeros_like(agent_w)
+    combined_list = []
+    ext_list      = []
+    
+    for t, step in enumerate(action_logs[0]):
+        # step: (num_agents, stocks_per_agent)
+        agent_w = step.flatten()   # shape (S,)
 
-    # combine and renormalize
-    combo = agent_w + ext_w
-    combo /= combo.sum()
+        # fetch external weights (or zeros if missing)
+        if date in external_trader.index:
+            ext_w = external_trader.loc[date].values.astype(np.float32)
+        else:
+            ext_w = np.zeros_like(agent_w)
 
-    combined_list.append(combo)
+        ext_list.append(ext_w)
 
-combined = np.vstack(combined_list)     # shape (T, S)
+        # combine and renormalize
+        combo = agent_w + ext_w
+        combo /= combo.sum()
 
-# --- 2) Compute the time‐average combined weight per stock ---
-avg_combined = combined.mean(axis=0)    # shape (S,); sums to 1
-avg_ext = ext_w.mean(axis=0)            # shape (S,); sums to 1
-# --- 3) Plot with tickers on the x‐axis ---
-tickers = test_data.columns.tolist()    # length S
+        combined_list.append(combo)
 
-plt.figure(figsize=(12,4))
-plt.bar(tickers, avg_combined)
-plt.xticks(rotation=90, fontsize=6)
-plt.xlabel("Stock Ticker")
-plt.ylabel("Average Combined Portfolio Weight")
-plt.title("Average Combined Portfolio Weights During Evaluation")
-plt.tight_layout()
-plt.show()
+    # stack into arrays of shape (T, S)
+    combined = np.vstack(combined_list)
+    ext_only = np.vstack(ext_list)
+
+    # time‐average across the evaluation episode
+    avg_combined = combined.mean(axis=0)
+    avg_ext      = ext_only.mean(axis=0)
+
+    tickers = test_data.columns.tolist()  # length S
+
+    # create a figure with two rows
+    fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(14, 8), sharex=True)
+
+    # top: combined weights
+    ax1.bar(tickers, avg_combined)
+    ax1.set_ylabel("Average Combined Weight")
+    ax1.set_title("Combined Portfolio vs. External Strategy")
+    ax1.tick_params(axis="x", which="both", bottom=False, labelbottom=False)
+
+    # bottom: external‐only weights
+    ax2.bar(tickers, avg_ext)
+    ax2.set_ylabel("Average External Weight")
+    ax2.set_xlabel("Stock Ticker")
+    ax2.tick_params(axis="x", rotation=90, labelsize=6)
+
+    plt.tight_layout()
+    plt.show()
+
+weights_plot(action_logs, external_trader, test_data)
+
 
 # %%
