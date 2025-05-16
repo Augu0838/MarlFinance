@@ -89,7 +89,7 @@ class PortfolioAgent:
         state_tensor = torch.tensor(state.flatten(), dtype=torch.float32, device=self.device).unsqueeze(0)
         probs = self.actor(state_tensor).squeeze()
 
-        alpha = probs * 0.05 + 1e-3
+        alpha = probs * 0.2 + 1e-3
         dist = Dirichlet(alpha)
         action = dist.sample()
         log_prob = dist.log_prob(action)
@@ -103,16 +103,22 @@ class PortfolioAgent:
         if len(self.rewards) < 1:
             return
 
-        # Prepare single step
+    # Prepare single step
         R = self.rewards[-1]
-        state_tensor = self.states[-1]
+        state_tensor = self.states[-1]  # shape: [1, input_dim]
+        return_tensor = torch.tensor([R], dtype=torch.float32, device=self.device)  # shape: [1]
 
-        return_tensor = torch.tensor([R], dtype=torch.float32, device=self.device)
+        # Critic: predict scalar value
+        value = self.critic(state_tensor).squeeze()  # ensures shape is [] (scalar) or [1]
 
-        # Critic update
-        value = self.critic(state_tensor)
-        critic_loss = nn.MSELoss()(value.unsqueeze(0), return_tensor)
+        # Match shapes explicitly for MSELoss
+        value = value.view(-1)           # shape: [1]
+        return_tensor = return_tensor.view(-1)  # ensure same shape
 
+        # Compute critic loss
+        critic_loss = nn.MSELoss()(value, return_tensor)
+
+        # Update critic
         self.optimizer_critic.zero_grad()
         critic_loss.backward()
         self.optimizer_critic.step()
