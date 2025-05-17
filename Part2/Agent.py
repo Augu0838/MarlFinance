@@ -90,7 +90,7 @@ class PortfolioAgent:
         state_tensor = torch.tensor(state.flatten(), dtype=torch.float32, device=self.device).unsqueeze(0)
         probs = self.actor(state_tensor).squeeze()
 
-        alpha = probs * 0.05 + 1e-2
+        alpha = probs * 0.9 + 1e-2
         dist = Dirichlet(alpha)
         action = dist.sample()
         log_prob = dist.log_prob(action)

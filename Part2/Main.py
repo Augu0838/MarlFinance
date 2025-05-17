@@ -24,7 +24,7 @@ stocks_per_agent = 20
 num_stocks = num_agents * stocks_per_agent
 
 window_size = 20
-episodes = 10
+episodes = 100
 
 #%% --------------------------------------------------------------------------
 # 1.  ──‑‑‑ DATA  ‑‑‑——————————————————————————————————————————————————
@@ -95,6 +95,7 @@ agents = [
 
 #%% --------------------------------------------------------------------------
 # 3.  ──‑‑‑ TRAINING LOOP FUNCTION  ‑‑‑———————————————————————————————————————
+
 def run(episodes:int, *, train:bool=True):
     """
     Returns
@@ -130,7 +131,7 @@ def run(episodes:int, *, train:bool=True):
             if train:
                 for i, ag in enumerate(agents):
                     ag.rewards.append(r[i])
-                    if step % 5 == 0:
+                    if step % 1 == 0:
                         ag.update_single()
 
             state = nxt
@@ -170,9 +171,17 @@ for i, ag in enumerate(agents):
 
 print('Model trained')
 
+# Plot learning curve
+p.learning_curve(
+    sharpe_per_episode,
+    title=f'Learning Curve - Sharpe Ratio over {episodes} episodes',
+    xlabel='Episodes',
+    ylabel='Sharpe Ratio'
+)
+
 #%% ----------------------------------------------------------------------
 # 5.  ──‑‑‑ EVALUATE  ‑‑‑—————————————————————————————————————————————
-eval_periods = 15
+eval_periods = 20
 
 eval_dict = {
     'Sharpe Combined': pd.DataFrame(),

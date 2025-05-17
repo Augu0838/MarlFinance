@@ -203,3 +203,28 @@ def market_returns(test_data):
     plt.grid(True)
     plt.tight_layout()
     plt.show()
+
+# ------------------ Learning Curve ------------------
+def learning_curve(sharpe_per_episode, title='', xlabel='Episodes', ylabel='Sharpe Ratio'):
+    plt.figure(figsize=(10, 5))
+    
+    episodes = np.arange(len(sharpe_per_episode))
+    
+    # Scatter plot
+    plt.scatter(episodes, sharpe_per_episode, label='Sharpe Ratio', color='blue', alpha=0.6)
+
+    # Line of best fit
+    coeffs = np.polyfit(episodes, sharpe_per_episode, deg=1)
+    trendline = np.polyval(coeffs, episodes)
+    plt.plot(episodes, trendline, color='green', label='Trend Line (Best Fit)', linewidth=2)
+
+    # Mean line
+    plt.axhline(y=np.mean(sharpe_per_episode), color='red', linestyle='--', label='Mean Sharpe Ratio')
+
+    # Labels and styling
+    plt.title(title)
+    plt.xlabel(xlabel)
+    plt.ylabel(ylabel)
+    plt.legend()
+    plt.grid()
+    plt.show()
