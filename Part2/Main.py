@@ -27,7 +27,7 @@ stocks_per_agent = 98*5
 num_stocks = num_agents * stocks_per_agent
 
 window_size = 20
-episodes = 200
+episodes = 10
 
 #%% --------------------------------------------------------------------------
 # 1.  ──‑‑‑ DATA  ‑‑‑——————————————————————————————————————————————————
@@ -139,8 +139,6 @@ def run(episodes:int, *, train:bool=True):
             if train:
                 for i, ag in enumerate(agents):
                     ag.rewards.append(r[i])
-                    if step % 5 == 0:
-                        ag.update_single()
 
             state = nxt
 
@@ -153,6 +151,10 @@ def run(episodes:int, *, train:bool=True):
                 f"(took {ep_elapsed:5.2f}s)")
 
         metrics.append(total_r)
+
+        if train:
+            for ag in agents:
+                ag.update()
         
         if not train:
             action_logs.append(ep_actions)  # Save episode's actions
