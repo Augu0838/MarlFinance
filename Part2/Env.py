@@ -72,7 +72,7 @@ class MultiAgentPortfolioEnv(gym.Env):
         end = self.current_step
 
         window_prices = self.prices[start:end]  # shape: (w, S)
-        returns = np.diff(np.log(window_prices), axis=0)  # shape: (w-1, S)
+        returns = np.diff(np.log(window_prices), axis=0)  # shape99999: (w-1, S)
 
         # Get external weights
         date = self.stock_df.index[self.current_step]
