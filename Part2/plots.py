@@ -143,7 +143,7 @@ def weights_plot(action_logs, external_trader, test_data, date):
         ext_list.append(ext_w)
 
         # combine and renormalize
-        combo = agent_w + ext_w
+        combo = agent_w #+ ext_w
         combo /= combo.sum()
 
         combined_list.append(combo)

@@ -69,7 +69,7 @@ def process_results(df, test_data, action_logs, external_trader,window_size):
     
         if date in external_trader.index:
             ext_weights = external_trader.loc[date].values
-            combo_weights = agent_weights + ext_weights
+            combo_weights = agent_weights #+ ext_weights
             combo_weights /= combo_weights.sum()
         else:
             combo_weights = agent_weights

@@ -158,7 +158,7 @@ class MultiAgentPortfolioEnv(gym.Env):
         date = self.stock_df.index[self.current_step]
         if self.external_trader is not None and date in self.external_trader.index:
             external_weights = self.external_trader.loc[date].values.astype(np.float32)
-            combined_portfolio = agent_portfolio + external_weights
+            combined_portfolio = agent_portfolio #+ external_weights
             combined_portfolio /= combined_portfolio.sum()  # re-normalize
         else:
             combined_portfolio = agent_portfolio 
