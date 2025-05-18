@@ -70,7 +70,7 @@ class ValueNetwork(nn.Module):
 class PortfolioAgent:
     def __init__(self, stock_count, window_size=10, lr=1e-3, gamma=0.99):
         self.stock_count = stock_count
-        self.input_dim = window_size * stock_count
+        self.input_dim = 2 * window_size * stock_count
         self.gamma = gamma
         
         self.device = torch.device("cpu")  
@@ -90,7 +90,7 @@ class PortfolioAgent:
         state_tensor = torch.tensor(state.flatten(), dtype=torch.float32, device=self.device).unsqueeze(0)
         probs = self.actor(state_tensor).squeeze()
 
-        alpha = probs * 2.0 + 1e-2
+        alpha = probs * 0.05 + 1e-2
         dist = Dirichlet(alpha)
         action = dist.sample()
         log_prob = dist.log_prob(action)
@@ -135,9 +135,13 @@ class PortfolioAgent:
         self.optimizer_actor.step()
 
         # Clear only most recent memory
-        self.rewards.pop()
-        self.saved_log_probs.pop()
-        self.states.pop()
+        # self.rewards.pop()
+        # self.saved_log_probs.pop()
+        # self.states.pop()
+
+        self.saved_log_probs.clear()
+        self.rewards.clear()
+        self.states.clear()
 
 
     def update(self):
