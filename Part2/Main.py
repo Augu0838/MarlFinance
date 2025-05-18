@@ -20,11 +20,11 @@ print(f"Using device: {device}")
 #%% --------------------------------------------------------------------------
 # 0.  ──‑‑‑ INPUTS  ‑‑‑——————————————————————————————————————————————————
 num_agents = 1
-stocks_per_agent = 20
-num_stocks = num_agents * stocks_per_agent
+stocks_per_agent = 20 + 1 # +1 for cash
+num_stocks = num_agents * stocks_per_agent 
 
 window_size = 20
-episodes = 500
+episodes = 100
 
 #%% --------------------------------------------------------------------------
 # 1.  ──‑‑‑ DATA  ‑‑‑——————————————————————————————————————————————————
@@ -52,6 +52,10 @@ else:
     # Save to file
     data.to_pickle(cache_file)
     print("Data cached to:", cache_file)
+
+# Add cash column
+cash = np.ones((data.shape[0], 1))
+data_with_cash = np.concatenate([cash, data], axis=1)
 
 # 80 / 20 chronological random split
 total_rows = len(data)
@@ -131,17 +135,20 @@ def run(episodes:int, *, train:bool=True):
             if train:
                 for i, ag in enumerate(agents):
                     ag.rewards.append(r[i])
-                    if step % 1 == 0:
-                        ag.update_single()
+                    # if step % 1 == 0:
+                    #     ag.update_single()
 
             state = nxt
 
         mean_r = total_r/step + 0.00001
         ep_elapsed = time.perf_counter() - ep_t0 # ➍  episode duration
 
-        if train: 
+        if train and done: 
+            for ag in agents:
+                ag.update()
+
             sharpe_per_episode.append(mean_r[0])
-            print(f"Episode {ep:>3}: Sharpe → {mean_r[0].round(4)}  "
+            print(f"Episode {ep:>3}: Reward → {mean_r[0].round(4)}  "
                 f"(took {ep_elapsed:5.2f}s)")
 
         metrics.append(total_r)
@@ -258,6 +265,9 @@ p.histogram(mean_comb_returns, mean_ext_returns)
 
 date = eval_dict["Sharpe Combined"].index[-1]
 p.weights_plot(action_logs, external_trader, test_data, date)
+date = eval_dict["Sharpe Combined"].index[0]
+p.weights_plot(action_logs, external_trader, test_data, date)
+
 
 p.market_returns(test_data)
 

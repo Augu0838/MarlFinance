@@ -17,7 +17,8 @@ class MultiAgentPortfolioEnv(gym.Env):
 
         # --- 1)  cache ndarray & returns ----------------------------------
         self.prices   = stock_df.to_numpy(dtype=np.float32)          # shape (T, S)
-        self.returns  = np.diff(self.prices, axis=0) / self.prices[:-1]  # (T-1, S)
+        #self.returns  = np.diff(self.prices, axis=0) / self.prices[:-1]  # (T-1, S)
+        self.returns = np.diff(np.log(self.prices), axis=0)
 
         self.num_steps, self.num_stocks = self.prices.shape
         self.stocks_per_agent = self.num_stocks // num_agents
@@ -159,16 +160,19 @@ class MultiAgentPortfolioEnv(gym.Env):
         if self.external_trader is not None and date in self.external_trader.index:
             external_weights = self.external_trader.loc[date].values.astype(np.float32)
             combined_portfolio = agent_portfolio + external_weights
-            combined_portfolio /= combined_portfolio.sum()  # re-normalize
+            combined_portfolio = combined_portfolio/combined_portfolio.sum()  # re-normalize
         else:
             combined_portfolio = agent_portfolio 
+        
+
 
         port_ret = np.dot(window_ret, combined_portfolio)
         mean = port_ret.mean()
         std = port_ret.std() + 1e-6
-        reward = mean / std
+        reward = mean - 0.5 * std
+        #reward = mean / std
 
-        rewards = [reward] * self.num_agents
+        rewards = [reward*100000] * self.num_agents
 
         # Generate next observation before advancing the step counter
         obs = self._get_obs()

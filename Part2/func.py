@@ -62,6 +62,7 @@ def process_results(df, test_data, action_logs, external_trader,window_size):
     ret_window = returns[start_idx : start_idx + max_len]
 
     combined_daily_returns = []
+
     for t in range(max_len):
         step_actions = action_logs[0][t]
         agent_weights = np.vstack(step_actions).flatten()

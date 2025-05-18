@@ -68,12 +68,12 @@ class ValueNetwork(nn.Module):
 # ---------------------------------------------------------------------------
 
 class PortfolioAgent:
-    def __init__(self, stock_count, window_size=10, lr=1e-3, gamma=0.99):
+    def __init__(self, stock_count, window_size=10, lr=1e-3, gamma=0.98):
         self.stock_count = stock_count
         self.input_dim = 2 * window_size * stock_count
-        self.gamma = gamma
-        
+        self.gamma = gamma        
         self.device = torch.device("cpu")  
+        self.entropy_beta = 0.8  # Entropy regularization coefficient
         #self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")  
 
         self.actor = DQNetwork(self.input_dim, stock_count).to(self.device)      
@@ -83,6 +83,7 @@ class PortfolioAgent:
         self.optimizer_critic = optim.Adam(self.critic.parameters(), lr=lr)
 
         self.saved_log_probs = []
+        self.entropies = []
         self.rewards = []
         self.states = []  # Save states for critic update
 
@@ -90,13 +91,17 @@ class PortfolioAgent:
         state_tensor = torch.tensor(state.flatten(), dtype=torch.float32, device=self.device).unsqueeze(0)
         probs = self.actor(state_tensor).squeeze()
 
-        alpha = probs * 0.05 + 1e-2
+        alpha = probs * 0.05 + 0.001
         dist = Dirichlet(alpha)
         action = dist.sample()
         log_prob = dist.log_prob(action)
+        entropy = dist.entropy()
 
         self.saved_log_probs.append(log_prob)
+        self.entropies.append(entropy)
         self.states.append(state_tensor)
+        self.entropies.append(dist.entropy())
+
 
         return action.detach().cpu().numpy()
     
@@ -135,10 +140,6 @@ class PortfolioAgent:
         self.optimizer_actor.step()
 
         # Clear only most recent memory
-        # self.rewards.pop()
-        # self.saved_log_probs.pop()
-        # self.states.pop()
-
         self.saved_log_probs.clear()
         self.rewards.clear()
         self.states.clear()
@@ -167,9 +168,11 @@ class PortfolioAgent:
         with torch.no_grad():
             advantages = returns - self.critic(state_batch)
 
+        # Actor: train with advantage + entropy bonus
         actor_loss = []
-        for log_prob, advantage in zip(self.saved_log_probs, advantages):
-            actor_loss.append(-log_prob * advantage)
+
+        for log_prob, advantage, entropy in zip(self.saved_log_probs, advantages, self.entropies):
+            actor_loss.append(-log_prob * advantage + self.entropy_beta * entropy)
 
         self.optimizer_actor.zero_grad()
         torch.stack(actor_loss).sum().backward()
@@ -177,5 +180,6 @@ class PortfolioAgent:
 
         # Clear memory
         self.saved_log_probs.clear()
+        self.entropies.clear()
         self.rewards.clear()
         self.states.clear()

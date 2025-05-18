@@ -20,7 +20,7 @@ def external_weights_new(
     Returns a DataFrame of daily weights (rows aligned to df.index[start:]).
     """
     # Determine the first valid date
-    start = max(momentum_lookback, vol_lookback, meanrev_long)
+    start = max(vol_lookback, meanrev_long)
     dates = df.index
     prices = df
 
