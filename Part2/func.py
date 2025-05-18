@@ -1,5 +1,6 @@
 import yfinance as yf
 import pandas as pd
+import numpy as np
 from datetime import datetime, timedelta
 
 def download_close_prices(tickers, start_day, period_days) -> pd.DataFrame:
@@ -37,3 +38,63 @@ def download_close_prices(tickers, start_day, period_days) -> pd.DataFrame:
 
     print(f"Number of stocks returned: {clean_df.shape[1]}")
     return clean_df
+
+
+def rolling_sharpe(returns, window):
+    returns = pd.Series(returns)
+    mean = returns.rolling(window).mean()
+    std = returns.rolling(window).std() + 1e-6
+    return (mean / std).values
+
+def process_results(df, test_data, action_logs, external_trader,window_size):
+
+    # Extract necessary data
+    returns = np.diff(test_data.values, axis=0) / test_data.values[:-1]  # shape (T-1, S)
+    dates = test_data.index[1:]  # align with returns
+
+    # Determine actual usable length (safe length after start_idx)
+    eval_len = len(action_logs[0])  # number of timesteps in the episode
+    start_idx = window_size
+    max_len = min(eval_len, len(dates) - start_idx)
+
+    # Align dates and return windows safely
+    eval_dates = dates[start_idx : start_idx + max_len]
+    ret_window = returns[start_idx : start_idx + max_len]
+
+    combined_daily_returns = []
+    for t in range(max_len):
+        step_actions = action_logs[0][t]
+        agent_weights = np.vstack(step_actions).flatten()
+        date = eval_dates[t]
+    
+        if date in external_trader.index:
+            ext_weights = external_trader.loc[date].values
+            combo_weights = agent_weights #+ ext_weights
+            combo_weights /= combo_weights.sum()
+        else:
+            combo_weights = agent_weights
+
+        r = np.dot(ret_window[t], combo_weights)
+        combined_daily_returns.append(r)
+
+    external_daily_returns = []
+    for t in range(max_len):
+        date = eval_dates[t]
+        if date in external_trader.index:
+            weights = external_trader.loc[date].values
+            r = np.dot(ret_window[t], weights)
+            external_daily_returns.append(r)
+        else:
+            external_daily_returns.append(0.0)  # fallback if date not available
+
+    sharpe_combined = np.nan_to_num(rolling_sharpe(combined_daily_returns, window_size), nan=0.0)
+    sharpe_external = np.nan_to_num(rolling_sharpe(external_daily_returns, window_size), nan=0.0)
+
+    return_df = pd.DataFrame({
+        'Sharpe Combined': sharpe_combined,
+        'Sharpe External': sharpe_external,
+        'External Daily Returns': external_daily_returns,
+        'Combined Daily Returns': combined_daily_returns,
+    }, index=eval_dates)
+
+    return return_df

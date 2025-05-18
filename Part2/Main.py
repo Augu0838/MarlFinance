@@ -8,25 +8,26 @@ import torch
 import time
 import os
 import plots as p
+<<<<<<< HEAD
+=======
+import func as f
+>>>>>>> 5104a3e1718bd82ce489a9e195a3cafa01fd3e45
 
 from Env import MultiAgentPortfolioEnv
 from Agent import PortfolioAgent
-
 from portfolio_mng_new import external_weights_new
-from func import download_close_prices
 
-#device = torch.device("cuda" if torch.cuda.is_available() else "cpu") 
 device = torch.device("cpu") 
 print(f"Using device: {device}") 
 
 #%% --------------------------------------------------------------------------
 # 0.  ──‑‑‑ INPUTS  ‑‑‑——————————————————————————————————————————————————
 num_agents = 1
-stocks_per_agent = 98*5
+stocks_per_agent = 20
 num_stocks = num_agents * stocks_per_agent
 
 window_size = 20
-episodes = 200
+episodes = 10
 
 show_graphs = True
 alpha = 0.05
@@ -46,7 +47,7 @@ else:
         "https://github.com/Augu0838/MarlFinance/blob/main/Part2/sp500_tickers.csv?raw=true"
     ).iloc[:num_stocks+10, 0].tolist()
 
-    data = download_close_prices(tickers, start_day=start_day, period_days=365*3)
+    data = f.download_close_prices(tickers, start_day=start_day, period_days=365*3)
     data.dropna(inplace=True)
 
     if data.shape[1] < num_stocks:
@@ -62,20 +63,14 @@ else:
 total_rows = len(data)
 test_len = int(total_rows * 0.20)
 max_start = total_rows - test_len
-
-# Ensure training data is long enough
-min_train_rows = window_size + 1
-#test_start = random.randint(min_train_rows, max_start)
-# change test start to include 2025-05-01
 test_start = max_start
-
 
 # Corrected Slicing
 train_data = data.iloc[:test_start]  # ← up to the start of test set
 test_data  = data.iloc[test_start - window_size : test_start + test_len]
+
 # Print forst day in test data
 print("First day in test data:", test_data.index[0])
-
 print('Training and test data loaded')
 
 #%% --------------------------------------------------------------------------
@@ -106,6 +101,7 @@ agents = [
 
 #%% --------------------------------------------------------------------------
 # 3.  ──‑‑‑ TRAINING LOOP FUNCTION  ‑‑‑———————————————————————————————————————
+
 def run(episodes:int, *, train:bool=True):
     """
     Returns
@@ -141,7 +137,11 @@ def run(episodes:int, *, train:bool=True):
             if train:
                 for i, ag in enumerate(agents):
                     ag.rewards.append(r[i])
+<<<<<<< HEAD
                     if step % 1 == 0: # 5 Decides frequency of training
+=======
+                    if step % 1 == 0:
+>>>>>>> 5104a3e1718bd82ce489a9e195a3cafa01fd3e45
                         ag.update_single()
 
             state = nxt
@@ -155,6 +155,10 @@ def run(episodes:int, *, train:bool=True):
                 f"(took {ep_elapsed:5.2f}s)")
 
         metrics.append(total_r)
+
+        if train:
+            for ag in agents:
+                ag.update()
         
         if not train:
             action_logs.append(ep_actions)  # Save episode's actions
@@ -181,90 +185,90 @@ for i, ag in enumerate(agents):
 
 print('Model trained')
 
+# Plot learning curve
+p.learning_curve(
+    sharpe_per_episode,
+    title=f'Learning Curve - Sharpe Ratio over {episodes} episodes',
+    xlabel='Episodes',
+    ylabel='Sharpe Ratio'
+)
+
 #%% ----------------------------------------------------------------------
 # 5.  ──‑‑‑ EVALUATE  ‑‑‑—————————————————————————————————————————————
-eval_periods = 15
-mean_sharpe_comb_list = []
-mean_sharpe_ext_list = []
+eval_periods = 20
 
-def rolling_sharpe(returns, window=window_size):
-    returns = pd.Series(returns)
-    mean = returns.rolling(window).mean()
-    std = returns.rolling(window).std() + 1e-6
-    return (mean / std).values
+eval_dict = {
+    'Sharpe Combined': pd.DataFrame(),
+    'Sharpe External': pd.DataFrame(),
+    'Combined Daily Returns': pd.DataFrame(),
+    'External Daily Returns': pd.DataFrame(),
+}
 
 for i in range(eval_periods):
     print(f"Evaluation {i+1}/{eval_periods}")
-    # Load memory
-    for i, ag in enumerate(agents):
-        checkpoint = torch.load(f"agent_{i}_checkpoint.pth", map_location=device)
+    
+    # Load models
+    for j, ag in enumerate(agents):
+        checkpoint = torch.load(f"agent_{j}_checkpoint.pth", map_location=device)
         ag.actor.load_state_dict(checkpoint['actor_state_dict'])
         ag.critic.load_state_dict(checkpoint['critic_state_dict'])
 
-    env = env_test                             
+    env = env_test
     eval_scores, _, action_logs = run(episodes=1, train=False)
-    print("Evaluation Sharpe:", eval_scores[0][0].round(4))
 
-    # Extract necessary data
-    returns = np.diff(test_data.values, axis=0) / test_data.values[:-1]  # shape (T-1, S)
-    dates = test_data.index[1:]  # align with returns
+    result_df = f.process_results(
+        df=None,
+        test_data=test_data,
+        action_logs=action_logs,
+        external_trader=external_trader,
+        window_size=env.window_size
+    )
 
-    # Determine actual usable length (safe length after start_idx)
-    eval_len = len(action_logs[0])  # number of timesteps in the episode
-    start_idx = env.window_size
-    max_len = min(eval_len, len(dates) - start_idx)
+    for key in eval_dict:
+        eval_dict[key][f"eval_{i+1}"] = result_df[key]
 
-    # Align dates and return windows safely
-    eval_dates = dates[start_idx : start_idx + max_len]
-    ret_window = returns[start_idx : start_idx + max_len]
+# Compute mean variables over all evaluations
+mean_series = {
+    key: df.mean(axis=1) for key, df in eval_dict.items()
+}
 
-    combined_daily_returns = []
-    for t in range(max_len):
-        step_actions = action_logs[0][t]
-        agent_weights = np.vstack(step_actions).flatten()
-        date = eval_dates[t]
-    
-        if date in external_trader.index:
-            ext_weights = external_trader.loc[date].values
-            combo_weights = agent_weights + ext_weights
-            combo_weights /= combo_weights.sum()
-        else:
-            combo_weights = agent_weights
+# Print mean sharpe rations over the evaluations
+print("\nCombined Sharpe Ratio:", mean_series["Sharpe Combined"].mean().round(4))
+print("External Sharpe Ratio:", mean_series["Sharpe External"].mean().round(4))
 
-        r = np.dot(ret_window[t], combo_weights)
-        combined_daily_returns.append(r)
 
-    external_daily_returns = []
-    for t in range(max_len):
-        date = eval_dates[t]
-        if date in external_trader.index:
-            weights = external_trader.loc[date].values
-            r = np.dot(ret_window[t], weights)
-            external_daily_returns.append(r)
-        else:
-            external_daily_returns.append(0.0)  # fallback if date not available
+#%% ----------------------------------------------------------------------
+# 6.  ──‑‑‑ PLOTS  ‑‑‑—————————————————————————————————————————————
 
-    sharpe_combined = np.nan_to_num(rolling_sharpe(combined_daily_returns), nan=0.0)
-    sharpe_external = np.nan_to_num(rolling_sharpe(external_daily_returns), nan=0.0)
+mean_comb_sharpe =  eval_dict["Sharpe Combined"].mean(axis=0).round(4).tolist()
+mean_ext_sharpe =  eval_dict["Sharpe External"].mean(axis=0).round(4).tolist()
 
-    mean_sharpe_combined = np.mean(sharpe_combined)
-    mean_sharpe_external = np.mean(sharpe_external)
+p.sharpe_ratios(
+    mean_comb_sharpe,
+    mean_ext_sharpe,
+    title=f'Average Sharpe Ratio over {eval_periods} evaluations'
+)
 
-    mean_sharpe_comb_list.append(mean_sharpe_combined)
-    mean_sharpe_ext_list.append(mean_sharpe_external)
+p.sharpe_ratios(
+    mean_series["Sharpe Combined"],
+    mean_series["Sharpe External"],
+    title=f'Rolling sharpe ratio over {window_size} days',
+)
 
-#%%
-p.sharpe_ratios(mean_sharpe_comb_list, mean_sharpe_ext_list)
-print("Combined Sharpe Ratio:", mean_sharpe_combined.round(4))
-print("External Sharpe Ratio:", mean_sharpe_external.round(4))
+p.sharp_difference(
+    mean_series["Sharpe Combined"],
+    mean_series["Sharpe External"],
+    title = 'Difference - Rolling sharpe ratio over {window_size} days'
+)
 
-#%% --------------------------------------------------------------------------
-# 6.  ──‑‑‑‑ PROCESS RESULTS  ‑‑‑—————————————————————————————————————————
+# Time-average returns across all evals
+mean_comb_returns = eval_dict["Combined Daily Returns"].mean(axis=1)
+mean_ext_returns = eval_dict["External Daily Returns"].mean(axis=1)
+eval_dates = mean_comb_returns.index
 
-# Extract necessary data
-returns = np.diff(test_data.values, axis=0) / test_data.values[:-1]  # shape (T-1, S)
-dates = test_data.index[1:]  # align with returns
+p.cumulative_returns(eval_dates, mean_comb_returns, mean_ext_returns)
 
+<<<<<<< HEAD
 # Determine actual usable length (safe length after start_idx)
 eval_len = len(action_logs[0])  # number of timesteps in the episode
 start_idx = env.window_size
@@ -336,7 +340,13 @@ if show_graphs:
     p.histogram(combined_daily_returns, external_daily_returns)
 
     p.weights_plot(action_logs, external_trader, test_data, date)
+=======
+p.histogram(mean_comb_returns, mean_ext_returns)
 
+date = eval_dict["Sharpe Combined"].index[-1]
+p.weights_plot(action_logs, external_trader, test_data, date)
+>>>>>>> 5104a3e1718bd82ce489a9e195a3cafa01fd3e45
 
+p.market_returns(test_data)
 
 # %%

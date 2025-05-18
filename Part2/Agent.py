@@ -70,7 +70,7 @@ class ValueNetwork(nn.Module):
 class PortfolioAgent:
     def __init__(self, stock_count, window_size=10, lr=1e-3, gamma=0.99, alpha_scale=0.25):
         self.stock_count = stock_count
-        self.input_dim = window_size * stock_count
+        self.input_dim = 2 * window_size * stock_count
         self.gamma = gamma
         self.alpha_scale = alpha_scale
         
@@ -91,7 +91,11 @@ class PortfolioAgent:
         state_tensor = torch.tensor(state.flatten(), dtype=torch.float32, device=self.device).unsqueeze(0)
         probs = self.actor(state_tensor).squeeze()
 
+<<<<<<< HEAD
         alpha = probs * self.alpha_scale + 1e-2
+=======
+        alpha = probs * 0.05 + 1e-2
+>>>>>>> 5104a3e1718bd82ce489a9e195a3cafa01fd3e45
         dist = Dirichlet(alpha)
         action = dist.sample()
         log_prob = dist.log_prob(action)
@@ -136,12 +140,20 @@ class PortfolioAgent:
         self.optimizer_actor.step()
 
         # Clear only most recent memory
-        self.rewards.pop()
-        self.saved_log_probs.pop()
-        self.states.pop()
+        # self.rewards.pop()
+        # self.saved_log_probs.pop()
+        # self.states.pop()
+
+        self.saved_log_probs.clear()
+        self.rewards.clear()
+        self.states.clear()
 
 
     def update(self):
+        if not self.rewards:
+            return
+
+        # 1. Compute discounted returns
         R = 0
         returns = []
         for r in reversed(self.rewards):
@@ -149,30 +161,28 @@ class PortfolioAgent:
             returns.insert(0, R)
 
         returns = torch.tensor(returns, dtype=torch.float32, device=self.device)
-        returns = (returns - returns.mean()) / (returns.std() + 1e-6)
+        returns = (returns - returns.mean()) / (returns.std() + 1e-6)  # normalize
 
-        # Critic: train to predict returns
+        # 2. Stack all states into batch
         state_batch = torch.cat(self.states).to(self.device)
-        values = self.critic(state_batch)
+
+        # 3. Critic loss (baseline)
+        values = self.critic(state_batch).squeeze()  # predicted baseline
         critic_loss = nn.MSELoss()(values, returns)
 
         self.optimizer_critic.zero_grad()
         critic_loss.backward()
         self.optimizer_critic.step()
 
-        # Actor: train with advantage
-        with torch.no_grad():
-            advantages = returns - self.critic(state_batch)
-
-        actor_loss = []
-        for log_prob, advantage in zip(self.saved_log_probs, advantages):
-            actor_loss.append(-log_prob * advantage)
+        # 4. Actor loss with advantage
+        advantages = returns - values.detach()
+        actor_loss = [-log_prob * adv for log_prob, adv in zip(self.saved_log_probs, advantages)]
 
         self.optimizer_actor.zero_grad()
         torch.stack(actor_loss).sum().backward()
         self.optimizer_actor.step()
 
-        # Clear memory
+        # 5. Clear memory
         self.saved_log_probs.clear()
         self.rewards.clear()
         self.states.clear()

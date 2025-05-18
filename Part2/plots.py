@@ -14,13 +14,13 @@ def plot_training_sharpe(sharpe_series):
     plt.show()
 
 # ------------------ Sharpe ratio ------------------
-def sharpe_ratios(sharpe_combined, sharpe_external):
+def sharpe_ratios(sharpe_combined, sharpe_external, title='10-Day Rolling Sharpe Ratio'):
     days = np.arange(len(sharpe_combined))
 
     plt.figure(figsize=(10, 5))
     plt.plot(days, sharpe_combined, label='Combined Portfolio')
     plt.plot(days, sharpe_external, label='External-only Portfolio')
-    plt.title('10-Day Rolling Sharpe Ratio')
+    plt.title(title)
     plt.xlabel('Day')
     plt.ylabel('Sharpe Ratio')
     plt.legend()
@@ -29,7 +29,7 @@ def sharpe_ratios(sharpe_combined, sharpe_external):
     plt.show()
 
 # ------------------ Sharpe difference ------------------
-def sharp_difference(sharpe_combined, sharpe_external):
+def sharp_difference(sharpe_combined, sharpe_external, title='Sharpe Ratio Difference'):
     # Compute difference between the rolling Sharpe ratios
     sharpe_diff = np.array(sharpe_combined) - np.array(sharpe_external)
     days = np.arange(len(sharpe_combined))
@@ -38,7 +38,7 @@ def sharp_difference(sharpe_combined, sharpe_external):
     plt.figure(figsize=(10, 5))
     plt.plot(days, sharpe_diff, label='Sharpe Ratio Difference (Combined - External)')
     plt.axhline(0, color='gray', linestyle='--', linewidth=1)
-    plt.title('10-Day Rolling Sharpe Ratio Difference')
+    plt.title(title)
     plt.xlabel('Day')
     plt.ylabel('Sharpe Difference')
     plt.legend()
@@ -143,7 +143,7 @@ def weights_plot(action_logs, external_trader, test_data, date):
         ext_list.append(ext_w)
 
         # combine and renormalize
-        combo = agent_w + ext_w
+        combo = agent_w #+ ext_w
         combo /= combo.sum()
 
         combined_list.append(combo)
@@ -174,4 +174,57 @@ def weights_plot(action_logs, external_trader, test_data, date):
     ax2.tick_params(axis="x", rotation=90, labelsize=6)
 
     plt.tight_layout()
+    plt.show()
+
+# ------------------ Stock returns over the test period ------------------
+def market_returns(test_data):
+
+    # Normalize all stock prices to start at 100
+    normalized_prices = test_data / test_data.iloc[0] * 100
+
+    # Calculate daily returns
+    daily_returns = normalized_prices.pct_change().dropna()
+
+    # Calculate cumulative returns
+    cumulative_returns = (1 + daily_returns).cumprod()
+
+    # compute mean cumulative returns
+    mean_cumulative_returns = cumulative_returns.mean(axis=1)
+    cumulative_returns['Mean'] = mean_cumulative_returns
+
+    # Plot cumulative returns
+    plt.figure(figsize=(12, 6))
+    plt.plot(cumulative_returns.index, cumulative_returns['Mean'], label='Average cummulative returns', alpha=0.7)
+
+    plt.title("Cumulative Returns of Stocks During Evaluation Period")
+    plt.xlabel("Date")
+    plt.ylabel("Cumulative Returns")
+    plt.legend(loc="upper left", fontsize="small", ncol=2)
+    plt.grid(True)
+    plt.tight_layout()
+    plt.show()
+
+# ------------------ Learning Curve ------------------
+def learning_curve(sharpe_per_episode, title='', xlabel='Episodes', ylabel='Sharpe Ratio'):
+    plt.figure(figsize=(10, 5))
+    
+    episodes = np.arange(len(sharpe_per_episode))
+    
+    # Scatter plot
+    plt.scatter(episodes, sharpe_per_episode, label='Sharpe Ratio', color='blue', alpha=0.6)
+
+    # Line of best fit
+    coeffs = np.polyfit(episodes, sharpe_per_episode, deg=1)
+    trendline = np.polyval(coeffs, episodes)
+    plt.plot(episodes, trendline, color='green', label='Trend Line (Best Fit)', linewidth=2)
+
+    # Mean line
+    plt.axhline(y=np.mean(sharpe_per_episode), color='red', linestyle='--', label='Mean Sharpe Ratio')
+
+    # Labels and styling
+    plt.title(title)
+    plt.xlabel(xlabel)
+    plt.ylabel(ylabel)
+    plt.legend()
+    plt.grid()
     plt.show()
