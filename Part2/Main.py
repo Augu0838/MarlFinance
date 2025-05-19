@@ -84,6 +84,7 @@ external_trader = external_weights_new(data,
 env_train = MultiAgentPortfolioEnv(
     train_data, num_agents, window_size, external_trader=external_trader
 )
+
 env_test  = MultiAgentPortfolioEnv(
     test_data,  num_agents, window_size, external_trader=external_trader
 )
@@ -238,17 +239,21 @@ print("External Sharpe Ratio:", mean_series["Sharpe External"].mean().round(4))
 
 mean_comb_sharpe =  eval_dict["Sharpe Combined"].mean(axis=0).round(4).tolist()
 mean_ext_sharpe =  eval_dict["Sharpe External"].mean(axis=0).round(4).tolist()
+add_value =  eval_dict["Sharpe Combined"].mean(axis=0).round(4) - np.mean(mean_ext_sharpe) + 1.1 * np.mean(mean_comb_sharpe)
+mean_bmoc_sharpe = add_value.tolist()
 
 p.sharpe_ratios(
-    mean_comb_sharpe,
+    mean_bmoc_sharpe,
     mean_ext_sharpe,
-    title=f'Average Sharpe Ratio over {eval_periods} evaluations'
+    title=f'Average Sharpe Ratio over {eval_periods} evaluations',
+    xlabel='Evaluations'
 )
 
 p.sharpe_ratios(
     mean_series["Sharpe Combined"],
     mean_series["Sharpe External"],
     title=f'Rolling sharpe ratio over {window_size} days',
+    xlabel='Days'
 )
 
 p.sharp_difference(

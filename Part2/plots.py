@@ -14,14 +14,14 @@ def plot_training_sharpe(sharpe_series):
     plt.show()
 
 # ------------------ Sharpe ratio ------------------
-def sharpe_ratios(sharpe_combined, sharpe_external, title='10-Day Rolling Sharpe Ratio'):
+def sharpe_ratios(sharpe_combined, sharpe_external, title='10-Day Rolling Sharpe Ratio', xlabel='Days'):
     days = np.arange(len(sharpe_combined))
 
     plt.figure(figsize=(10, 5))
     plt.plot(days, sharpe_combined, label='Combined Portfolio')
     plt.plot(days, sharpe_external, label='External-only Portfolio')
-    plt.title(title)
-    plt.xlabel('Day')
+    #plt.title(title)
+    plt.xlabel(xlabel)
     plt.ylabel('Sharpe Ratio')
     plt.legend()
     plt.grid(True)
