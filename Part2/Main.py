@@ -20,15 +20,15 @@ print(f"Using device: {device}")
 #%% --------------------------------------------------------------------------
 # 0.  ──‑‑‑ INPUTS  ‑‑‑——————————————————————————————————————————————————
 num_agents = 1
-stocks_per_agent = 50
+stocks_per_agent = 2
 num_stocks = num_agents * stocks_per_agent
 
-window_size = 20
-episodes = 300
+window_size = 10
+episodes = 50
 
 #%% --------------------------------------------------------------------------
 # 1.  ──‑‑‑ DATA  ‑‑‑——————————————————————————————————————————————————
-start_day = "2022-05-01"
+start_day = "2021-05-01"
 cache_file = f"cached_data_{num_stocks}_{start_day}.pkl"
 
 # Try loading cached data
