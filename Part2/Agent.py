@@ -70,10 +70,10 @@ class ValueNetwork(nn.Module):
 class PortfolioAgent:
     def __init__(self, stock_count, window_size=10, lr=1e-3, gamma=0.98):
         self.stock_count = stock_count
-        self.input_dim = 2 * window_size * stock_count
+        self.input_dim = window_size * stock_count
         self.gamma = gamma        
         self.device = torch.device("cpu")  
-        self.entropy_beta = 0.8  # Entropy regularization coefficient
+        self.entropy_beta = 0.05  # Entropy regularization coefficient
         #self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")  
 
         self.actor = DQNetwork(self.input_dim, stock_count).to(self.device)      

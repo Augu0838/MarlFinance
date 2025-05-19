@@ -20,11 +20,11 @@ print(f"Using device: {device}")
 #%% --------------------------------------------------------------------------
 # 0.  ──‑‑‑ INPUTS  ‑‑‑——————————————————————————————————————————————————
 num_agents = 1
-stocks_per_agent = 20 + 1 # +1 for cash
+stocks_per_agent = 50 # +1 for cash
 num_stocks = num_agents * stocks_per_agent 
 
 window_size = 20
-episodes = 100
+episodes = 10
 
 #%% --------------------------------------------------------------------------
 # 1.  ──‑‑‑ DATA  ‑‑‑——————————————————————————————————————————————————
@@ -54,8 +54,7 @@ else:
     print("Data cached to:", cache_file)
 
 # Add cash column
-cash = np.ones((data.shape[0], 1))
-data_with_cash = np.concatenate([cash, data], axis=1)
+data['Cash'] = np.ones((data.shape[0], 1))
 
 # 80 / 20 chronological random split
 total_rows = len(data)
@@ -92,10 +91,14 @@ env_test  = MultiAgentPortfolioEnv(
 env = env_train         
 
 # Initialize agents
+stocks_per_agent = stocks_per_agent +1
+
+num_stocks
 agents = [
     PortfolioAgent(stock_count=stocks_per_agent, window_size=window_size)
     for _ in range(num_agents)
 ]
+
 
 #%% --------------------------------------------------------------------------
 # 3.  ──‑‑‑ TRAINING LOOP FUNCTION  ‑‑‑———————————————————————————————————————
