@@ -20,15 +20,15 @@ print(f"Using device: {device}")
 #%% --------------------------------------------------------------------------
 # 0.  ──‑‑‑ INPUTS  ‑‑‑——————————————————————————————————————————————————
 num_agents = 1
-stocks_per_agent = 50 # +1 for cash
+stocks_per_agent = 2 # +1 for cash
 num_stocks = num_agents * stocks_per_agent 
 
 window_size = 20
-episodes = 10
+episodes = 1000
 
 #%% --------------------------------------------------------------------------
 # 1.  ──‑‑‑ DATA  ‑‑‑——————————————————————————————————————————————————
-start_day = "2022-05-01"
+start_day = "2020-01-01"
 cache_file = f"cached_data_{num_stocks}_{start_day}.pkl"
 
 # Try loading cached data
@@ -41,7 +41,7 @@ else:
         "https://github.com/Augu0838/MarlFinance/blob/main/Part2/sp500_tickers.csv?raw=true"
     ).iloc[:num_stocks+10, 0].tolist()
 
-    data = f.download_close_prices(tickers, start_day=start_day, period_days=365*3)
+    data = f.download_close_prices(tickers, start_day=start_day, period_days=366*5.5)
     data.dropna(inplace=True)
 
     if data.shape[1] < num_stocks:
