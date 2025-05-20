@@ -210,7 +210,7 @@ for i in range(eval_periods):
     
     # Load models
     for j, ag in enumerate(agents):
-        checkpoint = torch.load(f"agent_{j}_checkpoint.pth", map_location=device)
+        checkpoint = torch.load(f"agent_{j}_checkpoint_final.pth", map_location=device)
         ag.actor.load_state_dict(checkpoint['actor_state_dict'])
         ag.critic.load_state_dict(checkpoint['critic_state_dict'])
 
@@ -244,30 +244,17 @@ print("External Sharpe Ratio:", mean_series["Sharpe External"].mean().round(4))
 mean_comb_sharpe = np.array(eval_dict["Sharpe Combined"].mean(axis=0).round(4).tolist())
 mean_ext_sharpe  = np.array(eval_dict["Sharpe External"].mean(axis=0).round(4).tolist())
 
-def sharpe_ratios(sharpe_combined, sharpe_external, title='10-Day Rolling Sharpe Ratio', x_title = 'Days'):
-    days = np.arange(len(sharpe_combined))
-
-    plt.figure(figsize=(10, 5))
-    plt.plot(days, sharpe_combined, label='Combined Portfolio')
-    plt.plot(days, sharpe_external, label='External-only Portfolio')
-    plt.title(title)
-    plt.xlabel(x_title)
-    plt.ylabel('Sharpe Ratio')
-    plt.legend()
-    plt.grid(True)
-    plt.tight_layout()
-    plt.show()
-
-sharpe_ratios(
-    mean_comb_sharpe,
-    mean_ext_sharpe - 0.03,
-    title=f'Average Sharpe Ratio over {eval_periods} evaluations',
-    x_title='Evaluations'
-)
+# p.sharpe_ratios(
+#     mean_comb_sharpe,
+#     mean_ext_sharpe,
+#     title=f'Average Sharpe Ratio over {eval_periods} evaluations',
+#     x_title='Evaluations'
+# )
 
 p.sharpe_ratios(
-    mean_series["Sharpe Combined"][19:],
-    mean_series["Sharpe External"][19:]- 0.03,
+    mean_series["Sharpe Combined"],
+    mean_series["Sharpe External"],
+    test_data,
     title=f'Rolling sharpe ratio over {window_size} days',
 )
 

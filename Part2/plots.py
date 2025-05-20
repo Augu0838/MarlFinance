@@ -14,17 +14,32 @@ def plot_training_sharpe(sharpe_series):
     plt.show()
 
 # ------------------ Sharpe ratio ------------------
-def sharpe_ratios(sharpe_combined, sharpe_external, title='10-Day Rolling Sharpe Ratio', x_title = 'Days'):
-    days = np.arange(len(sharpe_combined))
+def sharpe_ratios(sharpe_combined, sharpe_external, test_data, title='Rolling Sharpe Ratio (20-day)', x_title='Date'):
+    # Normalize prices
+    normalized_prices = test_data / test_data.iloc[0] * 100
+    daily_returns = normalized_prices.pct_change().dropna()
 
-    plt.figure(figsize=(10, 5))
-    plt.plot(days, sharpe_combined, label='Combined Portfolio')
-    plt.plot(days, sharpe_external, label='External-only Portfolio')
+    # Market rolling Sharpe ratio
+    rolling_mean = daily_returns.mean(axis=1).rolling(window=20).mean()
+    rolling_std  = daily_returns.mean(axis=1).rolling(window=20).std()
+    sharpe_rolling = rolling_mean / (rolling_std + 1e-8)
+
+
+    # Align on shared date index
+    common_idx = sharpe_combined.index.intersection(sharpe_external.index).intersection(sharpe_rolling.index)
+
+    # Plot
+    plt.figure(figsize=(12, 6))
+    plt.plot(common_idx, sharpe_combined.loc[common_idx], label='Combined Portfolio')
+    plt.plot(common_idx, sharpe_external.loc[common_idx], label='External-only Portfolio')
+    plt.plot(common_idx, sharpe_rolling.loc[common_idx], label='Market Sharpe Ratio', linestyle='--', color='gray')
+
     plt.title(title)
     plt.xlabel(x_title)
     plt.ylabel('Sharpe Ratio')
-    plt.legend()
+    plt.xticks(rotation=45)
     plt.grid(True)
+    plt.legend()
     plt.tight_layout()
     plt.show()
 
