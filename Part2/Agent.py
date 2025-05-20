@@ -68,7 +68,7 @@ class ValueNetwork(nn.Module):
 # ---------------------------------------------------------------------------
 
 class PortfolioAgent:
-    def __init__(self, stock_count, window_size=10, lr=1e-3, gamma=0.98):
+    def __init__(self, stock_count, window_size=10, lr=1e-4, gamma=0.98):
         self.stock_count = stock_count
         self.input_dim = window_size * stock_count
         self.gamma = gamma        
@@ -102,50 +102,49 @@ class PortfolioAgent:
         self.states.append(state_tensor)
         self.entropies.append(dist.entropy())
 
-
         return action.detach().cpu().numpy()
     
-    def update_single(self):
-        if len(self.rewards) < 1:
-            return
+    # def update_single(self):
+    #     if len(self.rewards) < 1:
+    #         return
 
-    # Prepare single step
-        R = self.rewards[-1]
-        state_tensor = self.states[-1]  # shape: [1, input_dim]
-        return_tensor = torch.tensor([R], dtype=torch.float32, device=self.device)  # shape: [1]
+    # # Prepare single step
+    #     R = self.rewards[-1]
+    #     state_tensor = self.states[-1]  # shape: [1, input_dim]
+    #     return_tensor = torch.tensor([R], dtype=torch.float32, device=self.device)  # shape: [1]
 
-        # Critic: predict scalar value
-        value = self.critic(state_tensor).squeeze()  # ensures shape is [] (scalar) or [1]
+    #     # Critic: predict scalar value
+    #     value = self.critic(state_tensor).squeeze()  # ensures shape is [] (scalar) or [1]
 
-        # Match shapes explicitly for MSELoss
-        value = value.view(-1)           # shape: [1]
-        return_tensor = return_tensor.view(-1)  # ensure same shape
+    #     # Match shapes explicitly for MSELoss
+    #     value = value.view(-1)           # shape: [1]
+    #     return_tensor = return_tensor.view(-1)  # ensure same shape
 
-        # Compute critic loss
-        critic_loss = nn.MSELoss()(value, return_tensor)
+    #     # Compute critic loss
+    #     critic_loss = nn.MSELoss()(value, return_tensor)
 
-        # Update critic
-        self.optimizer_critic.zero_grad()
-        critic_loss.backward()
-        self.optimizer_critic.step()
+    #     # Update critic
+    #     self.optimizer_critic.zero_grad()
+    #     critic_loss.backward()
+    #     self.optimizer_critic.step()
 
-        # Actor update
-        with torch.no_grad():
-            advantage = return_tensor - value.detach()
+    #     # Actor update
+    #     with torch.no_grad():
+    #         advantage = return_tensor - value.detach()
 
-        actor_loss = -self.saved_log_probs[-1] * advantage
+    #     actor_loss = -self.saved_log_probs[-1] * advantage
 
-        self.optimizer_actor.zero_grad()
-        actor_loss.backward()
-        self.optimizer_actor.step()
+    #     self.optimizer_actor.zero_grad()
+    #     actor_loss.backward()
+    #     self.optimizer_actor.step()
 
-        # Clear only most recent memory
-        self.saved_log_probs.clear()
-        self.rewards.clear()
-        self.states.clear()
+    #     # Clear only most recent memory
+    #     self.saved_log_probs.clear()
+    #     self.rewards.clear()
+    #     self.states.clear()
 
 
-    def update(self):
+    def update(self, episode):
         R = 0
         returns = []
         for r in reversed(self.rewards):
@@ -176,6 +175,13 @@ class PortfolioAgent:
 
         self.optimizer_actor.zero_grad()
         torch.stack(actor_loss).sum().backward()
+
+        # for name, param in self.actor.named_parameters():
+            # if param.grad is not None:
+            #     print(f"[EP {episode}] {name} grad norm: {param.grad.norm().item():.6f}")
+            # else:
+            #     print(f"[EP {episode}] {name} grad: None")
+
         self.optimizer_actor.step()
 
         # Clear memory

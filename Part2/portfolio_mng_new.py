@@ -23,6 +23,7 @@ def external_weights_new(
     start = max(vol_lookback, meanrev_long)
     dates = df.index
     prices = df
+    prices['Cash'] = 1.0  # Add cash column for portfolio
 
     # 1) Momentum: pct change over lookback
     mom = prices.pct_change(periods=momentum_lookback).iloc[start:].values  # (T', S)

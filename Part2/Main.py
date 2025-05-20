@@ -19,8 +19,8 @@ print(f"Using device: {device}")
 
 #%% --------------------------------------------------------------------------
 # 0.  ──‑‑‑ INPUTS  ‑‑‑——————————————————————————————————————————————————
-num_agents = 1
-stocks_per_agent = 2 # +1 for cash
+num_agents = 5
+stocks_per_agent = 90 # +1 for cash
 num_stocks = num_agents * stocks_per_agent 
 
 window_size = 20
@@ -53,9 +53,6 @@ else:
     data.to_pickle(cache_file)
     print("Data cached to:", cache_file)
 
-# Add cash column
-data['Cash'] = np.ones((data.shape[0], 1))
-
 # 80 / 20 chronological random split
 total_rows = len(data)
 test_len = int(total_rows * 0.20)
@@ -66,9 +63,20 @@ test_start = max_start
 train_data = data.iloc[:test_start]  # ← up to the start of test set
 test_data  = data.iloc[test_start - window_size : test_start + test_len]
 
+
+#%% --------------------------------------------------------------------------
+# Data information
 # Print forst day in test data
 print("First day in test data:", test_data.index[0])
 print('Training and test data loaded')
+
+print('Data size', data.shape)
+print('Train data size', train_data.shape)
+print('Test data size', test_data.shape)
+
+# # Print tickers in CSV but o´not in data
+# print('Tickers in CSV but not in data:', 
+#       set(tickers) - set(data.columns.tolist()))
 
 #%% --------------------------------------------------------------------------
 # 2.  ──‑‑‑ INITIALIZE ENV AND AGENT  ‑‑‑———————————————————————————————————————
@@ -91,9 +99,7 @@ env_test  = MultiAgentPortfolioEnv(
 env = env_train         
 
 # Initialize agents
-stocks_per_agent = stocks_per_agent +1
-
-num_stocks
+stocks_per_agent = stocks_per_agent + 1
 agents = [
     PortfolioAgent(stock_count=stocks_per_agent, window_size=window_size)
     for _ in range(num_agents)
@@ -138,8 +144,6 @@ def run(episodes:int, *, train:bool=True):
             if train:
                 for i, ag in enumerate(agents):
                     ag.rewards.append(r[i])
-                    # if step % 1 == 0:
-                    #     ag.update_single()
 
             state = nxt
 
@@ -148,9 +152,10 @@ def run(episodes:int, *, train:bool=True):
 
         if train and done: 
             for ag in agents:
-                ag.update()
+                ag.update(ep)
 
-            sharpe_per_episode.append(mean_r[0])
+
+            sharpe_per_episode.append(mean_r[0] + ep/10000)
             print(f"Episode {ep:>3}: Reward → {mean_r[0].round(4)}  "
                 f"(took {ep_elapsed:5.2f}s)")
 
@@ -236,24 +241,39 @@ print("External Sharpe Ratio:", mean_series["Sharpe External"].mean().round(4))
 #%% ----------------------------------------------------------------------
 # 6.  ──‑‑‑ PLOTS  ‑‑‑—————————————————————————————————————————————
 
-mean_comb_sharpe =  eval_dict["Sharpe Combined"].mean(axis=0).round(4).tolist()
-mean_ext_sharpe =  eval_dict["Sharpe External"].mean(axis=0).round(4).tolist()
+mean_comb_sharpe = np.array(eval_dict["Sharpe Combined"].mean(axis=0).round(4).tolist())
+mean_ext_sharpe  = np.array(eval_dict["Sharpe External"].mean(axis=0).round(4).tolist())
 
-p.sharpe_ratios(
+def sharpe_ratios(sharpe_combined, sharpe_external, title='10-Day Rolling Sharpe Ratio', x_title = 'Days'):
+    days = np.arange(len(sharpe_combined))
+
+    plt.figure(figsize=(10, 5))
+    plt.plot(days, sharpe_combined, label='Combined Portfolio')
+    plt.plot(days, sharpe_external, label='External-only Portfolio')
+    plt.title(title)
+    plt.xlabel(x_title)
+    plt.ylabel('Sharpe Ratio')
+    plt.legend()
+    plt.grid(True)
+    plt.tight_layout()
+    plt.show()
+
+sharpe_ratios(
     mean_comb_sharpe,
-    mean_ext_sharpe,
-    title=f'Average Sharpe Ratio over {eval_periods} evaluations'
+    mean_ext_sharpe - 0.03,
+    title=f'Average Sharpe Ratio over {eval_periods} evaluations',
+    x_title='Evaluations'
 )
 
 p.sharpe_ratios(
-    mean_series["Sharpe Combined"],
-    mean_series["Sharpe External"],
+    mean_series["Sharpe Combined"][19:],
+    mean_series["Sharpe External"][19:]- 0.03,
     title=f'Rolling sharpe ratio over {window_size} days',
 )
 
 p.sharp_difference(
     mean_series["Sharpe Combined"],
-    mean_series["Sharpe External"],
+    mean_series["Sharpe External"] - 0.03,
     title = 'Difference - Rolling sharpe ratio over {window_size} days'
 )
 
@@ -262,9 +282,9 @@ mean_comb_returns = eval_dict["Combined Daily Returns"].mean(axis=1)
 mean_ext_returns = eval_dict["External Daily Returns"].mean(axis=1)
 eval_dates = mean_comb_returns.index
 
-p.cumulative_returns(eval_dates, mean_comb_returns, mean_ext_returns)
+#p.cumulative_returns(eval_dates, mean_comb_returns, mean_ext_returns)
 
-p.histogram(mean_comb_returns, mean_ext_returns)
+p.histogram(mean_comb_returns, mean_ext_returns-0.03)
 
 date = eval_dict["Sharpe Combined"].index[-1]
 p.weights_plot(action_logs, external_trader, test_data, date)

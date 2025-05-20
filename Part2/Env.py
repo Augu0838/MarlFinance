@@ -42,26 +42,24 @@ class MultiAgentPortfolioEnv(gym.Env):
     def _get_obs(self):
         """
         Returns a list with len=num_agents, each of shape
-        (window_size, stocks_per_agent)
-        No Python loops: one reshape + one slice.
+        (window_size, stocks_per_agent + 1), where the extra column is 'cash' (1s).
+        Vectorized: one reshape, one slice, one concat.
         """
         start = self.current_step - self.window_size
         end   = self.current_step
 
-        window = self.prices[start:end]                      # (W, S)
-        window = window.reshape(self.window_size,
-                                self.num_agents,
-                                self.stocks_per_agent)
-        
-        return [window[:, i, :] for i in range(self.num_agents)]
-    def _get_obs(self):
-        start = self.current_step - self.window_size
-        end = self.current_step
-
         window = self.prices[start:end]  # (W, S)
-        window = window.reshape(self.window_size, self.num_agents, self.stocks_per_agent)
-        return [window[:, i, :] for i in range(self.num_agents)]
+        window = window.reshape(self.window_size, self.num_agents, self.stocks_per_agent)  # (W, A, SP)
+
+        # Create a cash column of 1s: shape (W, A, 1)
+        cash_col = np.ones((self.window_size, self.num_agents, 1), dtype=window.dtype)
+
+        # Concatenate along the last axis to add cash to stock features
+        window_with_cash = np.concatenate([window, cash_col], axis=2)  # (W, A, SP + 1)
+
+        return [window_with_cash[:, i, :] for i in range(self.num_agents)]
     
+
     # get obs with covariance returns
     # def _get_obs(self):
     #     """
@@ -121,28 +119,54 @@ class MultiAgentPortfolioEnv(gym.Env):
         window_ret = self.returns[start:end]                # (W‑1, S)
 
         # Combine all agent actions into one portfolio
-        agent_portfolio = np.vstack(actions).astype(np.float32).flatten()  # (S,)
+        # Combine all agent actions into one portfolio (length: num_agents * (stocks_per_agent + 1))
+        agent_portfolio = np.vstack(actions).astype(np.float32).flatten()
+
+        # Reshape back to (num_agents, stocks_per_agent + 1)
+        num_assets = self.stocks_per_agent + 1
+        agent_portfolio = agent_portfolio.reshape(self.num_agents, num_assets)
+
+        # Separate stocks and cash
+        stock_weights = agent_portfolio[:, :-1]  # shape (A, S)
+        cash_weights  = agent_portfolio[:, -1]   # shape (A,)
+
+        # Combine all stocks into a single flat vector
+        combined_stock = stock_weights.flatten()
+
+        # Sum all cash allocations into one scalar cash value
+        combined_cash = np.sum(cash_weights)
+
+        # Concatenate into a single portfolio vector
+        final_portfolio = np.concatenate([combined_stock, [combined_cash]])
+
+        # Normalize so total sums to 1
+        final_portfolio /= final_portfolio.sum()
 
         # Combine with external weights if available
         if self.external_trader is not None:
             date = self.stock_df.index[self.current_step]
             if date in self.external_trader.index:
                 external_weights = self.external_trader.loc[date].values.astype(np.float32)
-                combined_portfolio = agent_portfolio + external_weights
-                combined_portfolio /= combined_portfolio.sum()  # re-normalize
+
+                if external_weights.shape[0] != final_portfolio.shape[0]:
+                    raise ValueError("Mismatch in external vs agent portfolio shape")
+
+                alpha = 0.5  # equal weighting
+                combined_portfolio = alpha * final_portfolio + (1 - alpha) * external_weights
             else:
-                combined_portfolio = agent_portfolio  # fallback
+                combined_portfolio = final_portfolio
         else:
-            combined_portfolio = agent_portfolio
+            combined_portfolio = final_portfolio
+
 
         # Portfolio returns over time
-        port_ret = np.dot(window_ret, combined_portfolio)             # (W-1,)
+        port_ret = np.dot(window_ret, combined_portfolio[:-1])            # (W-1,)
 
         mean  = port_ret.mean(axis=0)                       # (A,)
         std   = port_ret.std(axis=0)  + 1e-6
         reward = mean / std
 
-        rewards = [reward] * self.num_agents
+        rewards = [reward*10] * self.num_agents
 
         self.current_step += 1
         done = self.current_step >= self.num_steps
