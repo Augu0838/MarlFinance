@@ -175,7 +175,7 @@ class PortfolioAgent:
         # Actor loss with clamping
         actor_loss = []
         initial_entropy_beta = 0.3
-        entropy_decay_start = 150       # Keep constant for first 50 episodes
+        entropy_decay_start = 30       # Keep constant for first 50 episodes
         entropy_decay_rate = 0.99      # Exponential decay afterwards
 
         if episode >= entropy_decay_start:

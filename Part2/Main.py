@@ -19,12 +19,12 @@ print(f"Using device: {device}")
 
 #%% --------------------------------------------------------------------------
 # 0.  ──‑‑‑ INPUTS  ‑‑‑——————————————————————————————————————————————————
-num_agents = 5
-stocks_per_agent = 90 # +1 for cash
+num_agents = 1
+stocks_per_agent = 10 # +1 for cash
 num_stocks = num_agents * stocks_per_agent 
 
-window_size = 20
-episodes = 1000
+window_size = 100
+episodes = 100
 
 #%% --------------------------------------------------------------------------
 # 1.  ──‑‑‑ DATA  ‑‑‑——————————————————————————————————————————————————

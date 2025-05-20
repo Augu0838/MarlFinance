@@ -30,9 +30,9 @@ def sharpe_ratios(sharpe_combined, sharpe_external, test_data, title='Rolling Sh
 
     # Plot
     plt.figure(figsize=(12, 6))
-    plt.plot(common_idx, sharpe_combined.loc[common_idx], label='Combined Portfolio')
-    plt.plot(common_idx, sharpe_external.loc[common_idx], label='External-only Portfolio')
-    plt.plot(common_idx, sharpe_rolling.loc[common_idx], label='Market Sharpe Ratio', linestyle='--', color='gray')
+    plt.plot(common_idx[99:], sharpe_combined.loc[common_idx][99:], label='Combined Portfolio')
+    plt.plot(common_idx[99:], sharpe_external.loc[common_idx][99:], label='External-only Portfolio')
+    plt.plot(common_idx[99:], sharpe_rolling.loc[common_idx][99:], label='Market Sharpe Ratio', linestyle='--', color='gray')
 
     plt.title(title)
     plt.xlabel(x_title)
@@ -112,7 +112,7 @@ def histogram(combined_daily_returns, external_daily_returns):
     axs[0].grid(True)
     axs[0].legend()
     axs[0].text(0.02, 0.95,
-                f'Skew: {skew_comb:.2f}\nKurtosis: {kurt_comb:.2f}',
+                f'Mean: {mu_comb:.2f}\nVolatility: {sigma_comb:.2f}\nSkew: {skew_comb:.2f}\nKurtosis: {kurt_comb:.2f}',
                 transform=axs[0].transAxes, verticalalignment='top',
                 bbox=dict(facecolor='white', edgecolor='black', boxstyle='round,pad=0.5'))
 
@@ -132,7 +132,7 @@ def histogram(combined_daily_returns, external_daily_returns):
     axs[1].grid(True)
     axs[1].legend()
     axs[1].text(0.02, 0.95,
-                f'Skew: {skew_ext:.2f}\nKurtosis: {kurt_ext:.2f}',
+                f'Mean: {mu_ext:.2f}\nVolatility: {sigma_ext:.2f}\nKurtosis: {kurt_ext:.2f}',
                 transform=axs[1].transAxes, verticalalignment='top',
                 bbox=dict(facecolor='white', edgecolor='black', boxstyle='round,pad=0.5'))
 
