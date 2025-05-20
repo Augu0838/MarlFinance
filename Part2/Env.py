@@ -166,7 +166,7 @@ class MultiAgentPortfolioEnv(gym.Env):
         std   = port_ret.std(axis=0)  + 1e-6
         reward = mean / std
 
-        rewards = [reward*10] * self.num_agents
+        rewards = [reward] * self.num_agents
 
         self.current_step += 1
         done = self.current_step >= self.num_steps

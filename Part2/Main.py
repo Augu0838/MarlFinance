@@ -19,12 +19,12 @@ print(f"Using device: {device}")
 
 #%% --------------------------------------------------------------------------
 # 0.  ──‑‑‑ INPUTS  ‑‑‑——————————————————————————————————————————————————
-num_agents = 5
-stocks_per_agent = 90 # +1 for cash
+num_agents = 1
+stocks_per_agent = 5 # +1 for cash
 num_stocks = num_agents * stocks_per_agent 
 
-window_size = 20
-episodes = 1000
+window_size = 100
+episodes = 300
 
 #%% --------------------------------------------------------------------------
 # 1.  ──‑‑‑ DATA  ‑‑‑——————————————————————————————————————————————————
@@ -66,14 +66,20 @@ test_data  = data.iloc[test_start - window_size : test_start + test_len]
 
 #%% --------------------------------------------------------------------------
 # Data information
-# Print forst day in test data
-print("First day in test data:", test_data.index[0])
-print('Training and test data loaded')
+print("\n── Data Summary ───────────────────────────")
+print("Data size:", data.shape)
 
-print('Data size', data.shape)
-print('Train data size', train_data.shape)
-print('Test data size', test_data.shape)
+print("\nTraining set:")
+print(" - Size :", train_data.shape)
+print(" - Start:", train_data.index[0])
+print(" - End  :", train_data.index[-1])
 
+print("\nTest set:")
+print(" - Size :", test_data.shape)
+print(" - Start:", test_data.index[0])
+print(" - End  :", test_data.index[-1])
+
+print("\n────────────────────────────────────────────\n")
 # # Print tickers in CSV but o´not in data
 # print('Tickers in CSV but not in data:', 
 #       set(tickers) - set(data.columns.tolist()))
@@ -154,8 +160,7 @@ def run(episodes:int, *, train:bool=True):
             for ag in agents:
                 ag.update(ep)
 
-
-            sharpe_per_episode.append(mean_r[0] + ep/10000)
+            sharpe_per_episode.append(mean_r[0])
             print(f"Episode {ep:>3}: Reward → {mean_r[0].round(4)}  "
                 f"(took {ep_elapsed:5.2f}s)")
 
@@ -193,6 +198,8 @@ p.learning_curve(
     xlabel='Episodes',
     ylabel='Sharpe Ratio'
 )
+# Plot training diagnostics
+p.plot_training_diagnostics(agents[0].training_logs, agent_id=0)
 
 #%% ----------------------------------------------------------------------
 # 5.  ──‑‑‑ EVALUATE  ‑‑‑—————————————————————————————————————————————
@@ -260,20 +267,20 @@ def sharpe_ratios(sharpe_combined, sharpe_external, title='10-Day Rolling Sharpe
 
 sharpe_ratios(
     mean_comb_sharpe,
-    mean_ext_sharpe - 0.03,
+    mean_ext_sharpe,
     title=f'Average Sharpe Ratio over {eval_periods} evaluations',
     x_title='Evaluations'
 )
 
 p.sharpe_ratios(
     mean_series["Sharpe Combined"][19:],
-    mean_series["Sharpe External"][19:]- 0.03,
+    mean_series["Sharpe External"][19:],
     title=f'Rolling sharpe ratio over {window_size} days',
 )
 
 p.sharp_difference(
     mean_series["Sharpe Combined"],
-    mean_series["Sharpe External"] - 0.03,
+    mean_series["Sharpe External"],
     title = 'Difference - Rolling sharpe ratio over {window_size} days'
 )
 
@@ -284,13 +291,12 @@ eval_dates = mean_comb_returns.index
 
 #p.cumulative_returns(eval_dates, mean_comb_returns, mean_ext_returns)
 
-p.histogram(mean_comb_returns, mean_ext_returns-0.03)
+p.histogram(mean_comb_returns, mean_ext_returns)
 
 date = eval_dict["Sharpe Combined"].index[-1]
 p.weights_plot(action_logs, external_trader, test_data, date)
 date = eval_dict["Sharpe Combined"].index[0]
 p.weights_plot(action_logs, external_trader, test_data, date)
-
 
 p.market_returns(test_data)
 

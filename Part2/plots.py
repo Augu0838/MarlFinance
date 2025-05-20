@@ -126,55 +126,66 @@ def histogram(combined_daily_returns, external_daily_returns):
 
 # ------------------ Portfolioweights histogram ------------------
 def weights_plot(action_logs, external_trader, test_data, date): 
-
     combined_list = []
-    ext_list      = []
+    ext_list = []
     
-    for t, step in enumerate(action_logs[0]):
-        # step: (num_agents, stocks_per_agent)
-        agent_w = step.flatten()   # shape (S,)
+    num_agents = len(action_logs[0])
+    stocks_per_agent = action_logs[0][0].shape[0] - 1  # last col is cash
+    total_stocks = num_agents * stocks_per_agent
 
-        # fetch external weights (or zeros if missing)
+    for t, step in enumerate(action_logs[0]):
+        # step: (num_agents, stocks_per_agent + 1)
+        step = np.array(step, dtype=np.float32)
+        stock_weights = step[:, :-1].flatten()  # shape (S,)
+        cash_weights  = step[:, -1]             # shape (A,)
+        total_cash = cash_weights.sum()
+        
+        agent_w = np.concatenate([stock_weights, [total_cash]])  # shape (S+1,)
+
+        # External weights
         if date in external_trader.index:
             ext_w = external_trader.loc[date].values.astype(np.float32)
+            if ext_w.shape[0] == total_stocks:
+                # Add cash = 1.0 to external to match agent_w shape
+                ext_w = np.concatenate([ext_w, [1.0]])  # or 0.0 if no external cash
         else:
             ext_w = np.zeros_like(agent_w)
 
         ext_list.append(ext_w)
 
-        # combine and renormalize
+        # Combine and normalize
         combo = agent_w + ext_w
         combo /= combo.sum()
 
         combined_list.append(combo)
 
-    # stack into arrays of shape (T, S)
+    # Stack into arrays of shape (T, S+1)
     combined = np.vstack(combined_list)
     ext_only = np.vstack(ext_list)
 
-    # time‐average across the evaluation episode
+    # Time-average
     avg_combined = combined.mean(axis=0)
     avg_ext      = ext_only.mean(axis=0)
 
-    tickers = test_data.columns.tolist()  # length S
+    # Tickers + cash
+    tickers = test_data.columns.tolist() + ['CASH']
 
-    # create a figure with two rows
+    # Plot
     fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(14, 8), sharex=True)
 
-    # top: combined weights
     ax1.bar(tickers, avg_combined)
     ax1.set_ylabel("Average Combined Weight")
-    ax1.set_title("Combined Portfolio vs. External Strategy")
+    ax1.set_title("Combined Portfolio (Including Cash)")
     ax1.tick_params(axis="x", which="both", bottom=False, labelbottom=False)
 
-    # bottom: external‐only weights
     ax2.bar(tickers, avg_ext)
     ax2.set_ylabel("Average External Weight")
-    ax2.set_xlabel("Stock Ticker")
+    ax2.set_xlabel("Asset (Stocks + Cash)")
     ax2.tick_params(axis="x", rotation=90, labelsize=6)
 
     plt.tight_layout()
     plt.show()
+
 
 # ------------------ Stock returns over the test period ------------------
 def market_returns(test_data):
@@ -228,3 +239,68 @@ def learning_curve(sharpe_per_episode, title='', xlabel='Episodes', ylabel='Shar
     plt.legend()
     plt.grid()
     plt.show()
+
+
+import matplotlib.pyplot as plt
+import numpy as np
+
+def plot_training_diagnostics(logs, agent_id=0):
+    """
+    Plots training diagnostics for a given agent.
+
+    Parameters
+    ----------
+    logs : dict
+        {
+            "avg_entropy": List[float],
+            "critic_loss": List[float],
+            "actor_loss": List[float],
+            "grad_norms": Dict[str, List[float]]
+        }
+    agent_id : int
+        Identifier for labeling plots.
+    """
+    episodes = np.arange(len(logs["avg_entropy"]))
+
+    # ------------------- Entropy Plot -------------------
+    plt.figure(figsize=(10, 4))
+    plt.plot(episodes, logs["avg_entropy"], label="Avg Entropy", color="blue")
+    plt.title(f"[Agent {agent_id}] Avg Entropy Over Training")
+    plt.xlabel("Episode")
+    plt.ylabel("Entropy")
+    plt.grid(True)
+    plt.tight_layout()
+    plt.show()
+
+    # ------------------- Critic Loss Plot -------------------
+    plt.figure(figsize=(10, 4))
+    plt.plot(episodes, logs["critic_loss"], label="Critic Loss", color="red")
+    plt.title(f"[Agent {agent_id}] Critic MSE Loss Over Training")
+    plt.xlabel("Episode")
+    plt.ylabel("Loss")
+    plt.grid(True)
+    plt.tight_layout()
+    plt.show()
+
+    # ------------------- Actor Loss Plot -------------------
+    plt.figure(figsize=(10, 4))
+    plt.plot(episodes, logs["actor_loss"], label="Actor Loss", color="green")
+    plt.title(f"[Agent {agent_id}] Actor Loss Over Training")
+    plt.xlabel("Episode")
+    plt.ylabel("Loss")
+    plt.grid(True)
+    plt.tight_layout()
+    plt.show()
+
+    # ------------------- Gradient Norms Plot -------------------
+    for layer, values in logs["grad_norms"].items():
+        plt.figure(figsize=(10, 4))
+        plt.plot(episodes, values, label=f"{layer} Grad Norm")
+        plt.title(f"[Agent {agent_id}] Gradient Norm for {layer}")
+        plt.xlabel("Episode")
+        plt.ylabel("Grad Norm")
+        plt.grid(True)
+        plt.tight_layout()
+        plt.show()
+
+
