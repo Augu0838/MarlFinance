@@ -161,8 +161,9 @@ class MultiAgentPortfolioEnv(gym.Env):
 
         # Portfolio returns over time
         port_ret = np.dot(window_ret, combined_portfolio[:-1])            # (W-1,)
+        ext_ret = np.dot(window_ret, external_weights[:-1])            # (W-1,)
 
-        mean  = port_ret.mean(axis=0)                       # (A,)
+        mean  = port_ret.mean(axis=0) - ext_ret.mean(axis=0)                    # (A,)
         std   = port_ret.std(axis=0)  + 1e-6
         reward = mean / std
 

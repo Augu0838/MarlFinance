@@ -88,7 +88,7 @@ class PortfolioAgent:
         self.input_dim = window_size * stock_count
         self.gamma = gamma        
         self.device = torch.device("cpu")  
-        self.entropy_beta = 0.1  # Entropy regularization coefficient
+        self.entropy_beta = 1.0  # Entropy regularization coefficient
         #self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")  
 
         self.actor = DQNetwork(self.input_dim, stock_count).to(self.device)      
@@ -114,14 +114,16 @@ class PortfolioAgent:
             }
         }
 
-    def act(self, state):
+    def act(self, state, episode):
         state_tensor = torch.tensor(state.flatten(), dtype=torch.float32, device=self.device).unsqueeze(0)
         
         probs = self.actor(state_tensor).squeeze()
         probs = torch.clamp(probs, min=1e-3)
 
         #alpha = probs * 0.05 + 0.001
-        alpha = probs * self.stock_count + 1e-2
+        total_concentration = min(10.0, 3.0 + episode * 0.05)
+        alpha = probs * total_concentration
+
         alpha = torch.clamp(alpha, min=1e-1) # Ensure alpha is not too small
         
         dist = Dirichlet(alpha)
@@ -172,6 +174,20 @@ class PortfolioAgent:
         # Actor: train with advantage + entropy bonus
         # Actor loss with clamping
         actor_loss = []
+        initial_entropy_beta = 0.3
+        entropy_decay_start = 150       # Keep constant for first 50 episodes
+        entropy_decay_rate = 0.99      # Exponential decay afterwards
+
+        if episode >= entropy_decay_start:
+            self.entropy_beta = max(
+                0.01, initial_entropy_beta * (entropy_decay_rate ** (episode - entropy_decay_start))
+            )
+        else:
+            self.entropy_beta = initial_entropy_beta
+        # initial_beta = 0.1
+        # decay_rate = 0.99  # Tune between 0.95 and 0.999
+        # self.entropy_beta = max(0.01, initial_beta * (decay_rate ** episode))
+
         for log_prob, advantage, entropy in zip(self.saved_log_probs, advantages, self.entropies):
             log_prob = torch.clamp(log_prob, -10.0, 10.0)
             entropy = torch.clamp(entropy, -5.0, 5.0)

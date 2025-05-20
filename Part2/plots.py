@@ -14,17 +14,32 @@ def plot_training_sharpe(sharpe_series):
     plt.show()
 
 # ------------------ Sharpe ratio ------------------
-def sharpe_ratios(sharpe_combined, sharpe_external, title='10-Day Rolling Sharpe Ratio', x_title = 'Days'):
-    days = np.arange(len(sharpe_combined))
+def sharpe_ratios(sharpe_combined, sharpe_external, test_data, title='Rolling Sharpe Ratio (20-day)', x_title='Date'):
+    # Normalize prices
+    normalized_prices = test_data / test_data.iloc[0] * 100
+    daily_returns = normalized_prices.pct_change().dropna()
 
-    plt.figure(figsize=(10, 5))
-    plt.plot(days, sharpe_combined, label='Combined Portfolio')
-    plt.plot(days, sharpe_external, label='External-only Portfolio')
+    # Market rolling Sharpe ratio
+    rolling_mean = daily_returns.mean(axis=1).rolling(window=20).mean()
+    rolling_std  = daily_returns.mean(axis=1).rolling(window=20).std()
+    sharpe_rolling = rolling_mean / (rolling_std + 1e-8)
+
+
+    # Align on shared date index
+    common_idx = sharpe_combined.index.intersection(sharpe_external.index).intersection(sharpe_rolling.index)
+
+    # Plot
+    plt.figure(figsize=(12, 6))
+    plt.plot(common_idx, sharpe_combined.loc[common_idx], label='Combined Portfolio')
+    plt.plot(common_idx, sharpe_external.loc[common_idx], label='External-only Portfolio')
+    plt.plot(common_idx, sharpe_rolling.loc[common_idx], label='Market Sharpe Ratio', linestyle='--', color='gray')
+
     plt.title(title)
     plt.xlabel(x_title)
     plt.ylabel('Sharpe Ratio')
-    plt.legend()
+    plt.xticks(rotation=45)
     plt.grid(True)
+    plt.legend()
     plt.tight_layout()
     plt.show()
 
@@ -196,21 +211,20 @@ def market_returns(test_data):
     # Calculate daily returns
     daily_returns = normalized_prices.pct_change().dropna()
 
-    # Calculate cumulative returns
-    cumulative_returns = (1 + daily_returns).cumprod()
+    # Calculate rolling 20-day Sharpe ratio
+    mean_rolling = daily_returns.mean(axis=1).rolling(window=20).mean()
+    std_rolling = daily_returns.mean(axis=1).rolling(window=20).std()
+    sharpe_rolling = mean_rolling / (std_rolling + 1e-8)  # avoid division by zero
 
-    # compute mean cumulative returns
-    mean_cumulative_returns = cumulative_returns.mean(axis=1)
-    cumulative_returns['Mean'] = mean_cumulative_returns
-
-    # Plot cumulative returns
+    # Plot rolling Sharpe ratio
     plt.figure(figsize=(12, 6))
-    plt.plot(cumulative_returns.index, cumulative_returns['Mean'], label='Average cummulative returns', alpha=0.7)
+    plt.plot(sharpe_rolling.index, sharpe_rolling, label='Rolling 20-Day Sharpe Ratio', color='blue')
+    plt.axhline(0, color='gray', linestyle='--', linewidth=1)
 
-    plt.title("Cumulative Returns of Stocks During Evaluation Period")
+    plt.title("Rolling 20-Day Sharpe Ratio of Average Market Returns")
     plt.xlabel("Date")
-    plt.ylabel("Cumulative Returns")
-    plt.legend(loc="upper left", fontsize="small", ncol=2)
+    plt.ylabel("Sharpe Ratio")
+    plt.legend(loc="upper left", fontsize="small")
     plt.grid(True)
     plt.tight_layout()
     plt.show()
