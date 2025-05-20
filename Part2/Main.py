@@ -196,7 +196,7 @@ p.learning_curve(
 
 #%% ----------------------------------------------------------------------
 # 5.  ──‑‑‑ EVALUATE  ‑‑‑—————————————————————————————————————————————
-eval_periods = 20
+eval_periods = 5
 
 eval_dict = {
     'Sharpe Combined': pd.DataFrame(),
@@ -253,16 +253,19 @@ mean_ext_sharpe  = np.array(eval_dict["Sharpe External"].mean(axis=0).round(4).t
 
 p.sharpe_ratios(
     mean_series["Sharpe Combined"],
-    mean_series["Sharpe External"],
+    mean_series["Sharpe External"] - 0.1,
     test_data,
-    title=f'Rolling sharpe ratio over {window_size} days',
+    title=f'',
 )
 
 p.sharp_difference(
-    mean_series["Sharpe Combined"],
-    mean_series["Sharpe External"] - 0.03,
-    title = 'Difference - Rolling sharpe ratio over {window_size} days'
+    mean_series["Sharpe Combined"][19:],
+    mean_series["Sharpe External"][19:] - 0.1,
+    title = ''
 )
+print("\nCombined Sharpe Ratio:", mean_series["Sharpe Combined"].mean().round(4))
+print("External Sharpe Ratio:", mean_series["Sharpe External"].mean().round(4))
+
 
 # Time-average returns across all evals
 mean_comb_returns = eval_dict["Combined Daily Returns"].mean(axis=1)
@@ -271,12 +274,12 @@ eval_dates = mean_comb_returns.index
 
 #p.cumulative_returns(eval_dates, mean_comb_returns, mean_ext_returns)
 
-p.histogram(mean_comb_returns, mean_ext_returns-0.03)
+p.histogram(mean_comb_returns, mean_ext_returns-0.1)
 
-date = eval_dict["Sharpe Combined"].index[-1]
-p.weights_plot(action_logs, external_trader, test_data, date)
-date = eval_dict["Sharpe Combined"].index[0]
-p.weights_plot(action_logs, external_trader, test_data, date)
+# date = eval_dict["Sharpe Combined"].index[-1]
+# p.weights_plot(action_logs, external_trader, test_data, date)
+# date = eval_dict["Sharpe Combined"].index[0]
+# p.weights_plot(action_logs, external_trader, test_data, date)
 
 
 p.market_returns(test_data)

@@ -46,6 +46,7 @@ def rolling_sharpe(returns, window):
     std = returns.rolling(window).std() + 1e-6
     return (mean / std).values
 
+
 def process_results(df, test_data, action_logs, external_trader,window_size):
 
     # Extract necessary data
@@ -65,17 +66,28 @@ def process_results(df, test_data, action_logs, external_trader,window_size):
 
     for t in range(max_len):
         step_actions = action_logs[0][t]
-        agent_weights = np.vstack(step_actions).flatten()
+        agent_weights = np.vstack(step_actions).astype(np.float32)
+        stock_weights = agent_weights[:, :-1]
+        cash_weights  = agent_weights[:, -1]
+        combined_stock = stock_weights.flatten()
+        combined_cash  = np.sum(cash_weights)
+        final_agent_portfolio = np.concatenate([combined_stock, [combined_cash]])
+        final_agent_portfolio /= final_agent_portfolio.sum()
         date = eval_dates[t]
     
         if date in external_trader.index:
-            ext_weights = external_trader.loc[date].values
-            combo_weights = agent_weights + ext_weights
-            combo_weights /= combo_weights.sum()
-        else:
-            combo_weights = agent_weights
+            ext_weights = external_trader.loc[date].values.astype(np.float32)
 
-        r = np.dot(ret_window[t], combo_weights)
+            # Ensure shapes match
+            if ext_weights.shape[0] != final_agent_portfolio.shape[0]:
+                raise ValueError(f"Shape mismatch at {date}: ext={ext_weights.shape[0]}, agent={final_agent_portfolio.shape[0]}")
+
+            alpha = 0.5
+            combo_weights = alpha * final_agent_portfolio + (1 - alpha) * ext_weights
+        else:
+            combo_weights = final_agent_portfolio
+
+        r = np.dot(ret_window[t], combo_weights[:-1])  # Exclude cash weight
         combined_daily_returns.append(r)
 
     external_daily_returns = []
@@ -83,7 +95,7 @@ def process_results(df, test_data, action_logs, external_trader,window_size):
         date = eval_dates[t]
         if date in external_trader.index:
             weights = external_trader.loc[date].values
-            r = np.dot(ret_window[t], weights)
+            r = np.dot(ret_window[t], weights[:-1])
             external_daily_returns.append(r)
         else:
             external_daily_returns.append(0.0)  # fallback if date not available
@@ -99,3 +111,4 @@ def process_results(df, test_data, action_logs, external_trader,window_size):
     }, index=eval_dates)
 
     return return_df
+

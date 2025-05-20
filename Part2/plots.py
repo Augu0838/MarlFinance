@@ -24,15 +24,25 @@ def sharpe_ratios(sharpe_combined, sharpe_external, test_data, title='Rolling Sh
     rolling_std  = daily_returns.mean(axis=1).rolling(window=20).std()
     sharpe_rolling = rolling_mean / (rolling_std + 1e-8)
 
+    # Drop NaNs before alignment
+    sharpe_combined = sharpe_combined.dropna()
+    sharpe_external = sharpe_external.dropna()
+    sharpe_rolling  = sharpe_rolling.dropna()
 
-    # Align on shared date index
-    common_idx = sharpe_combined.index.intersection(sharpe_external.index).intersection(sharpe_rolling.index)
+    # Intersect indices robustly
+    common_idx = sharpe_combined.index.intersection(sharpe_external.index)
+    common_idx = common_idx.intersection(sharpe_rolling.index)
+
+    # Filter all series on the common index only
+    sharpe_combined = sharpe_combined.loc[common_idx]
+    sharpe_external = sharpe_external.loc[common_idx]
+    sharpe_rolling  = sharpe_rolling.loc[common_idx]
 
     # Plot
     plt.figure(figsize=(12, 6))
-    plt.plot(common_idx, sharpe_combined.loc[common_idx], label='Combined Portfolio')
-    plt.plot(common_idx, sharpe_external.loc[common_idx], label='External-only Portfolio')
-    plt.plot(common_idx, sharpe_rolling.loc[common_idx], label='Market Sharpe Ratio', linestyle='--', color='gray')
+    plt.plot(common_idx[19:], sharpe_combined[19:], label='Combined Portfolio')
+    plt.plot(common_idx[19:], sharpe_external[19:], label='External-only Portfolio')
+    plt.plot(common_idx[19:], sharpe_rolling[19:], label='Market Sharpe Ratio', linestyle='--', color='gray')
 
     plt.title(title)
     plt.xlabel(x_title)
